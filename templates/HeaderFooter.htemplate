@@ -1,0 +1,40 @@
+{{define "header"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Blockchain Network Watchcat</title>
+</head>
+<body>
+    </div><img src="/static/blockchain_64x64.png" align="left"/>
+    <div> <table border="0"><tr><td colspan = 4><H2>Ethereum Private Network Monitoring Tool</H2></td></tr>
+   <tr><td>{{.ClientHostName}}</td><td></td><td>{{with .}} {{template "toggleRawMode" .}} {{end}}<td/>
+       <td>{{template "refresh"}}<td/></tr>
+</table></div>
+
+    <hr/>
+{{end}}
+
+{{define "footer"}}
+<hr/>
+</body>
+</html>
+{{end}}
+
+{{define "toggleRawMode"}}
+<form action="{{.RequestPath}}" type="POST">
+<input hidden="true" name="togglerawmode" value="yes"/>
+<table>
+    <tr>
+        <td width="150">Raw: {{ .RawMode}}</td>
+        <td><button type="submit">toggle raw</button></td>
+    </tr>
+</table>
+        </form>
+{{end}}
+
+        {{define "refresh"}}
+<form action="{{.RequestPath}}" type="POST">
+<button type="submit" >refresh</button>
+        </form>
+        {{end}}

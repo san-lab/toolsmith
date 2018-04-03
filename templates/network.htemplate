@@ -1,0 +1,16 @@
+{{define "network" }}{{/* expecting NodeModel as the pipe */}}
+{{template "header"}}
+Reachable nodes: </br>
+    {{range .ReachableNodes}}
+        name: {{.ShortName}} id: {{.IDHead 10}}...{{.IDTail 10}} </br>
+        Status: {{ .Status}} BlockNumber: {{.LastBlockNumberQuery.BlockNumber}} reported at {{.LastBlockNumberQuery.BlockQueryTime}}</br>
+        Peer count: <a href="/{{.PrefAddress}}/admin_peers"> {{len .Peers}}</a> Known addresses: {{len .KnownAddresses}} <a  href="/{{.PrefAddress }}/txpool_inspect"> txpool</a>
+        </br>
+    {{end}}
+</p>
+Unreachable addresses: </br>
+    {{range $host, $time := .Unreachables}}
+        {{$host}} on {{$time}} </br>
+    {{end}}
+{{template "footer"}}
+{{end}}

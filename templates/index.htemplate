@@ -1,0 +1,10 @@
+{{define "home"}}
+{{template "header" .LocalInfo}}
+    <p>Reaching the net from: <b> {{.LocalInfo.ClientHostName}}</b> <br/>
+    ({{.LocalInfo.ClientIp}})</p>
+<ul>
+    <li>rpc port: {{.Port}}</li>
+    <li>agent: {{.UserAgent}}</li>
+</ul>
+{{template "footer"}}
+{{end}}

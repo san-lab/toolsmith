@@ -1,0 +1,11 @@
+{{define "peers"}}
+{{template "header" .Context}}
+
+<h2>Peers of {{.Context.TargetNode}}</h2>
+<ol>
+{{range $peer:= .ParsedResult}}
+   <li> <a href="/{{.RemoteHostMachine}}/admin_nodeInfo" >{{$peer.RemoteHostMachine}} </a>  </li>
+{{end}}
+</ol>
+{{template "footer"}}
+{{end}}
