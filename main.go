@@ -3,9 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/san-lab/toolsmith/httphandler"
 	"log"
 	"net/http"
-	"watchcat/httphandler"
 )
 
 //Parsing flags "ethport" and "host"

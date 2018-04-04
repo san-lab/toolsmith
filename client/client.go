@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"github.com/san-lab/toolsmith/templates"
 	"net"
 	"net/http"
 	"os"
 	"strings"
 	"time"
-	"watchcat/templates"
 
 	"fmt"
 )
@@ -89,7 +89,12 @@ func (c *Client) ActualRpcCall(data *CallData) error {
 	return err
 }
 
-func (client *Client) FirstCall() error {
+//Scan the network following successive peer lists.
+//If rebiuld == true discard the old network model
+func (client *Client) ScanNertwork(rebuild bool) error {
+	if rebuild {
+		client.NetModel.ReachableNodes = map[string]*Node{}
+	}
 	err := client.CollectNodeInfoRecursively(client.DefaultEthNode, client.Port)
 	if err != nil {
 		return err

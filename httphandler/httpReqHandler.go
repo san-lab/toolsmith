@@ -3,10 +3,10 @@ package httphandler
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/san-lab/toolsmith/client"
+	"github.com/san-lab/toolsmith/templates"
 	"net/http"
 	"strings"
-	"watchcat/client"
-	"watchcat/templates"
 )
 
 const toggle = "togglerawmode"
@@ -22,7 +22,7 @@ type LilHttpHandler struct {
 	r         *templates.Renderer
 }
 
-//TODO: Config variable
+//Creating a naw http handler with its embedded rpc client and html renderer
 func NewHttpHandler(c Config) (lhh *LilHttpHandler, err error) {
 	lhh = &LilHttpHandler{}
 	lhh.r = templates.NewRenderer()
@@ -58,7 +58,7 @@ func (lhh *LilHttpHandler) Handler(w http.ResponseWriter, r *http.Request) {
 func (lhh *LilHttpHandler) GenericCommand(w http.ResponseWriter, r *http.Request, comm string) {
 	switch comm {
 	case discover:
-		lhh.rpcClient.FirstCall()
+		lhh.rpcClient.ScanNertwork(true)
 		lhh.r.RenderResponse(w, "network", lhh.rpcClient.NetModel)
 		//fmt.Fprintf(w,"%s\n" , "Not implemented")
 	case toggle:
