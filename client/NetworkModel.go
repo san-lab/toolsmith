@@ -45,11 +45,11 @@ type Node struct {
 	Name                 string
 	RPCPort              string
 	KnownAddresses       map[string]bool
-	Peers                PeerArray
+	Peers                *PeerArray
 	LastBlockNumberQuery BlockNumberQuery
 }
 
-//Extract the short name from the Node name
+//Extract the short name from the NodeAddress name
 // assuming the name is of the form: "Geth/miner3/v1.7.2-stable/linux-amd64/go1.9.2"
 func (n *Node) ShortName() string {
 	parts := strings.Split(n.Name, "/")
@@ -85,6 +85,6 @@ func NewNode() *Node {
 }
 
 type BlockNumberQuery struct {
-	BlockNumber    int32
+	BlockNumber    int64
 	BlockQueryTime MyTime
 }

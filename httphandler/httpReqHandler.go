@@ -1,16 +1,20 @@
 package httphandler
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/san-lab/toolsmith/client"
 	"github.com/san-lab/toolsmith/templates"
 	"net/http"
+	"regexp"
+	"sort"
 	"strings"
 )
 
 const toggle = "togglerawmode"
 const discover = "discovernetwork"
+const bloop = "bloop"
+const rescan = "rescan"
 
 var KnownLocalCommands = []string{toggle, discover}
 
@@ -18,6 +22,7 @@ var KnownLocalCommands = []string{toggle, discover}
 
 type LilHttpHandler struct {
 	//defaultContext client.CallContext
+	config    Config
 	rpcClient *client.Client
 	r         *templates.Renderer
 }
@@ -25,6 +30,7 @@ type LilHttpHandler struct {
 //Creating a naw http handler with its embedded rpc client and html renderer
 func NewHttpHandler(c Config) (lhh *LilHttpHandler, err error) {
 	lhh = &LilHttpHandler{}
+	lhh.config = c
 	lhh.r = templates.NewRenderer()
 	lhh.rpcClient, err = client.NewClient(c.EthHost, c.EthPort)
 	return lhh, err
@@ -44,7 +50,11 @@ func (lhh *LilHttpHandler) Handler(w http.ResponseWriter, r *http.Request) {
 	switch len(f) {
 	case 1:
 		comm := f[0]
-		lhh.GenericCommand(w, r, comm)
+		if client.CamelCaseKnownCommand(&comm) {
+			lhh.RpcCallAndRespond(w, r, lhh.config.EthHost, comm)
+		} else {
+			lhh.GenericCommand(w, r, comm)
+		}
 	case 2:
 		eNode := f[0]
 		eMethod := f[1]
@@ -56,63 +66,64 @@ func (lhh *LilHttpHandler) Handler(w http.ResponseWriter, r *http.Request) {
 
 //TODO
 func (lhh *LilHttpHandler) GenericCommand(w http.ResponseWriter, r *http.Request, comm string) {
+	var err error
 	switch comm {
 	case discover:
-		lhh.rpcClient.ScanNertwork(true)
+		err = lhh.rpcClient.Command(client.Discover)
 		lhh.r.RenderResponse(w, "network", lhh.rpcClient.NetModel)
-		//fmt.Fprintf(w,"%s\n" , "Not implemented")
-	case toggle:
-		//lhh.rpcClient.LocalInfo.RawMode = !c.LocalInfo.RawMode
+	case rescan:
+		err = lhh.rpcClient.Command(client.Rescan)
+		lhh.r.RenderResponse(w, "network", lhh.rpcClient.NetModel)
+	case bloop:
+		err = lhh.rpcClient.Command(client.Bloop)
 	default:
-		lhh.RpcCallAndRespond(w, r, lhh.rpcClient.DefaultEthNode, comm)
+		err = errors.New(fmt.Sprintf("Unknown command: %s", comm))
 	}
-
+	if err != nil {
+		fmt.Fprintln(w, err)
+	}
 }
 
 // Ethereum RPC call to the eNode and rendering the appropriate HTML result page.
-// Parameter values from the url query will be marshaled as json params[],
+// Parameter values from the url query will be marshaled as json params[], if their keys are of the form "parX", where X=0..9
 // but if there are multiple values for any particular key, only the first value will be used.
 // The parameter names will be skipped.
 func (lhh *LilHttpHandler) RpcCallAndRespond(w http.ResponseWriter, r *http.Request, eNode string, eMethod string) {
-	client.CamelCaseKnownCommand(&eMethod)
+	client.CamelCaseKnownCommand(&eMethod) //We could stop here if false, but what if there are new methods?
 	var err error
 	r.ParseForm()
 	callData := lhh.rpcClient.NewCallData(eMethod)
 	callData.Context.TargetNode = eNode
 	callData.Context.RequestPath = r.RequestURI
 
-	//TODO: assure parameter ordering
-	for _, v := range r.Form {
-		callData.Command.Params = append(callData.Command.Params, v[0])
+	//"parN"=parameterValue
+	paramValidator := regexp.MustCompile(`par\d$`)
+	var keys []string
+	for k := range r.Form {
+		if paramValidator.MatchString(k) {
+			keys = append(keys, k)
+
+		}
 	}
+	if len(keys) > 0 {
+		sort.Strings(keys)
+		for _, pk := range keys {
+			callData.Command.Params = append(callData.Command.Params, r.Form[pk][0])
+		}
+	}
+	// End of param handling
+
 	var showRaw bool
-	//if len(r.Form["showRaw"])>0  && r.Form["showRaw"][0]=="true" {
-	//	showRaw=true
-	//}
+	//showRaw parameter is independent of the current value of the RawMode
 	if r.FormValue("showRaw") == "true" || callData.Context.RawMode {
-		showRaw = true
+		showRaw = true          //for rendering
+		callData.RawJson = true //for decoding
 	}
-	err = lhh.rpcClient.ActualRpcCall(callData)
+	err = lhh.rpcClient.RPC(callData)
 	if err != nil {
 		fmt.Fprintln(w, err)
 		return
 	}
-	//TODO refactor the showRaw mode
-	// Spurious ---------------------
-	var jcom, jres []byte
-	jcom, err = json.Marshal(callData.Command)
-	if err != nil {
-		fmt.Fprintln(w, err)
-		return
-	}
-	jres, err = json.MarshalIndent(callData.Response, "", "   ")
-	if err != nil {
-		fmt.Fprintln(w, err)
-		return
-	}
-	callData.RandomStuff["Jcom"] = string(jcom)
-	callData.RandomStuff["Jres"] = string(jres)
-	// End of Spurious --------------
 
 	if showRaw {
 		lhh.r.RenderResponse(w, "raw", callData)

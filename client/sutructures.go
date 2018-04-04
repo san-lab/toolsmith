@@ -1,11 +1,14 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"strconv"
 	"strings"
+	"time"
 )
 
 //This file contains Go structures and methods needed for json marshal/unmarshal
@@ -13,29 +16,52 @@ import (
 //Two-step json unmarshalling. First from reader into CallData.Response, the "result" stays as 'rawMessage'.
 //Then - if the result is a known structure - it is decoded into CallData.Result.ParsedResult
 func Decode(reader io.Reader, data *CallData) error {
-	err := json.NewDecoder(reader).Decode(&data.Response)
+	respBytes, err := ioutil.ReadAll(reader)
 	if err != nil {
 		return err
 	}
+
+	//if data.RawJson {
+	jcom, err := json.Marshal(data.Command)
+	if err != nil {
+		fmt.Println(err) //Not sure if one should do more - this is Marshalling our own command...
+
+	}
+	data.JsonRequest = string(jcom)
+	var buf bytes.Buffer
+	err = json.Indent(&buf, respBytes, "", " ")
+	data.JsonResponse = buf.String()
+	//return err
+	//}
+
+	//err := json.NewDecoder(reader).Decode(&data.Response)
+	err = json.Unmarshal(respBytes, &data.Response)
+	if err != nil {
+		return err
+	}
+
 	if data.Response.Error != nil {
 		return nil // it is an error, but not the Client's error
 	}
+
 	var p ResultType
 	switch data.Command.Method {
 	case "admin_datadir": // All the single-strings results fall here
 		s := StringResult("")
 		p = &s
 	case "admin_peers":
-		p = PeerArray(make([]PeerInfo, 0, 10))
+		p = &PeerArray{}
 
-	case "eth_blockNumber":
-		b := IntegerResult(0)
+	case "eth_blockNumber": //Result is not a struct, just an 0xdddd string representing a number
+		b := HexString(0)
 		p = &b
 	case "admin_nodeInfo":
 		p = &NodeInfo{}
+	case "txpool_status":
+		p = &TxpoolStatus{}
 	}
 	if p != nil {
-		err = p.parse(data)
+		err = parseWrapper(p, data)
 	}
 	if err != nil {
 		fmt.Println(err)
@@ -48,6 +74,19 @@ func Decode(reader io.Reader, data *CallData) error {
 //Known ResultTypes must implement the parse() method
 type ResultType interface {
 	parse(*CallData) error
+}
+
+//Just to save a few lines on the boilerplate code
+func parseWrapper(parseable ResultType, data *CallData) error {
+
+	err := parseable.parse(data)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	data.Parsed = true
+	data.ParsedResult = parseable
+	return nil
 }
 
 //This is inlined from github.com/ethereum/go-ethereum/p2p/server.go
@@ -68,13 +107,7 @@ type NodeInfo struct {
 }
 
 func (ni *NodeInfo) parse(data *CallData) error {
-	err := json.Unmarshal(data.Response.Result, &ni)
-	if err != nil {
-		return err
-	}
-	data.Parsed = true
-	data.ParsedResult = ni
-	return err
+	return json.Unmarshal(data.Response.Result, ni)
 }
 
 // This structure is inlined from github.com/ethereum/go-ethereum/p2p/peer
@@ -101,46 +134,54 @@ func (p PeerInfo) RemoteHostMachine() string {
 //A type to hook the "parse()" method on. *This* is a ResultType.
 type PeerArray []PeerInfo
 
-func (pa PeerArray) parse(data *CallData) error { // Hope this works - an array is already a pointer...
-	//p := make([]PeerInfo,0,10)
-	err := json.Unmarshal(data.Response.Result, &pa)
-	if err != nil {
-		return err
-	}
-	data.Parsed = true
-	data.ParsedResult = pa
-	return err
+func (pa *PeerArray) parse(data *CallData) error { // Hope this works - an array is already a pointer...
+	return json.Unmarshal(data.Response.Result, &pa)
 }
 
-//A ResultType for eth_blockNumber
-type IntegerResult int32
-
-//And the required method
-func (bn *IntegerResult) parse(data *CallData) error {
-	var tmp string
-	var bn2 int64
-	err := json.Unmarshal(data.Response.Result, &tmp)
-	if err != nil {
-		return err
-	}
-	bn2, err = strconv.ParseInt(tmp, 0, 32)
-	if err != nil {
-		return err
-	}
-	data.ParsedResult = IntegerResult(bn2)
-	data.Parsed = true
-	return err
-}
-
+//If the json "Result" is just a string
 type StringResult string
 
 func (dd *StringResult) parse(data *CallData) error {
-	err := json.Unmarshal(data.Response.Result, &dd)
+	return json.Unmarshal(data.Response.Result, &dd)
+}
+
+//txpool_status structure - nothing appropriate found in geth :-(
+type TxpoolStatus struct {
+	Pending HexString `json:"pending",string`
+	Queued  HexString `json:"queued",string`
+	Sampled time.Time `json:"-"`
+}
+
+type HexString int64
+
+func (h *HexString) UnmarshalText(text []byte) (err error) {
+	var tmpS string
+	var tmpI int64
+	tmpS = string(text)
+	if l := len(tmpS) - 1; l > 1 {
+		if tmpS[0] == '"' {
+			tmpS = tmpS[1:]
+			l--
+		}
+		if tmpS[l] == '"' {
+			tmpS = tmpS[:l]
+		}
+	}
+	tmpI, err = strconv.ParseInt(tmpS, 0, 64)
+	*h = HexString(tmpI)
+	return err
+}
+
+func (h *HexString) parse(data *CallData) error {
+	return h.UnmarshalText(data.Response.Result)
+}
+
+func (txs *TxpoolStatus) parse(data *CallData) error {
+	err := json.Unmarshal(data.Response.Result, &txs)
 	if err != nil {
 		return err
 	}
-	data.ParsedResult = dd
-	data.Parsed = true
+	txs.Sampled = time.Now()
 	return nil
 }
 
@@ -165,15 +206,19 @@ type EthCommand struct {
 	Id      uint          `json:"id"`
 }
 
-//A wrapper to pass around the call Context, Command, Result, and Error (if any)
+//A wrapper to pass around the call Context, RPC, Result, and Error (if any)
 type CallData struct {
 	Context      CallContext
 	Command      EthCommand
 	Response     EthResponse
 	Parsed       bool // if the "result" has been decoded to a specific structure
 	ParsedResult interface{}
-	Node         string
+	NodeAddress  string
+	NodeRPCport  string
 	RandomStuff  map[string]interface{} //Ugh this is ugly. But still learning templates
+	RawJson      bool                   //How to parse
+	JsonRequest  string
+	JsonResponse string
 }
 
 //TODO: expand this stub
