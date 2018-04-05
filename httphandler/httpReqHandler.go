@@ -15,6 +15,7 @@ const toggle = "togglerawmode"
 const discover = "discovernetwork"
 const bloop = "bloop"
 const rescan = "rescan"
+const heartbeat = "heartbeat"
 
 var KnownLocalCommands = []string{toggle, discover}
 
@@ -32,7 +33,7 @@ func NewHttpHandler(c Config) (lhh *LilHttpHandler, err error) {
 	lhh = &LilHttpHandler{}
 	lhh.config = c
 	lhh.r = templates.NewRenderer()
-	lhh.rpcClient, err = client.NewClient(c.EthHost, c.EthPort)
+	lhh.rpcClient, err = client.NewClient(c.EthHost)
 	return lhh, err
 }
 
@@ -69,13 +70,17 @@ func (lhh *LilHttpHandler) GenericCommand(w http.ResponseWriter, r *http.Request
 	var err error
 	switch comm {
 	case discover:
-		err = lhh.rpcClient.Command(client.Discover)
+		err = lhh.rpcClient.DiscoverNetwork()
 		lhh.r.RenderResponse(w, "network", lhh.rpcClient.NetModel)
 	case rescan:
-		err = lhh.rpcClient.Command(client.Rescan)
+		err = lhh.rpcClient.Rescan()
 		lhh.r.RenderResponse(w, "network", lhh.rpcClient.NetModel)
 	case bloop:
-		err = lhh.rpcClient.Command(client.Bloop)
+		m, _ := lhh.rpcClient.Bloop()
+		lhh.r.RenderResponse(w, "listMap", m)
+	case heartbeat:
+		ok, nodes := lhh.rpcClient.HeartBeat()
+		fmt.Fprintf(w, "Network heartbeat: %v for %v nodes", ok, nodes)
 	default:
 		err = errors.New(fmt.Sprintf("Unknown command: %s", comm))
 	}
@@ -144,7 +149,6 @@ func (lhh *LilHttpHandler) RpcCallAndRespond(w http.ResponseWriter, r *http.Requ
 }
 
 type Config struct {
-	EthPort  string
 	EthHost  string
 	HttpPort string
 }

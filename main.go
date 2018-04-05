@@ -13,13 +13,12 @@ import (
 //TODO: Take care of the favicon.ico location
 func main() {
 
-	ethport := flag.String("ethPort", "8545", "rest rpc port (defaults to 8545)")
-	ethHost := flag.String("ethHost", "localhost", "default/starting node ethHost")
+	ethRPCAddress := flag.String("ethRPCAddress", "localhost:8545", "default RPC access point")
 	httpPort := flag.String("httpPort", "8090", "http port")
 	flag.Parse()
 	c := httphandler.Config{}
-	c.EthPort = *ethport
-	c.EthHost = *ethHost
+
+	c.EthHost = *ethRPCAddress
 	c.HttpPort = *httpPort
 	fmt.Println("Here")
 	handler, err := httphandler.NewHttpHandler(c)

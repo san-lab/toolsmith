@@ -19,28 +19,23 @@ import (
 type Client struct {
 	defaultEthNode string
 	UserAgent      string
-	Port           string
 	httpClient     *http.Client
 	nodes          map[string]bool
 	seq            uint
 	r              *templates.Renderer
 	LocalInfo      CallContext
 	NetModel       BlockchainNet //TODO oe should it be vice-versa?
-
+	defautRPCPort  string
 }
 
 const defaultTimeout = 3 * time.Second
 
 //Creates a new rest api client
 //If something like ("www.node:8666",8545) is passed, an error is thrown
-func NewClient(ethHost string, port string) (c *Client, err error) {
+func NewClient(ethHost string) (c *Client, err error) {
 	c = &Client{httpClient: http.DefaultClient}
 	c.defaultEthNode = ethHost
-	if strings.Contains(ethHost, ":") {
-		c.Port = strings.Split(ethHost, ":")[1]
-	} else {
-		c.Port = port
-	}
+	c.defautRPCPort = strings.Split(ethHost, ":")[1]
 	c.nodes = make(map[string]bool)
 	c.seq = 0
 	c.httpClient.Timeout = defaultTimeout
@@ -56,16 +51,12 @@ func (rpcClient *Client) SetTimeout(timeout time.Duration) {
 	rpcClient.httpClient.Timeout = timeout
 }
 
-func (rpcClient *Client) Command(command SimpleCommand) (err error) {
-	switch command {
-	case Discover:
-		err = rpcClient.scanNetwork(true)
-	case Rescan:
-		err = rpcClient.scanNetwork(false)
-	default:
-		err = errors.New(fmt.Sprintf("Unknown command: %s", command))
-	}
-	return err
+func (rpcClient *Client) DiscoverNetwork() error {
+	return rpcClient.scanNetwork(true)
+}
+
+func (rpcClient *Client) Rescan() error {
+	return rpcClient.scanNetwork(false)
 }
 
 //This is the exposed internal API - one method, so the things like mutex, etc. are possible
@@ -94,10 +85,12 @@ func (rpcClient *Client) actualRpcCall(data *CallData) error {
 	data.Command.Id = rpcClient.nextID()
 	jcom, _ := json.Marshal(data.Command)
 	//TODO: allow to define and memorize node-specific ports
-	host := "http://" + data.Context.TargetNode
-	if !strings.Contains(data.Context.TargetNode, ":") {
-		host = host + ":" + rpcClient.Port
+	host := data.Context.TargetNode
+	if !strings.Contains(host, ":") {
+		host = host + ":" + rpcClient.defautRPCPort
 	}
+	host = "http://" + host
+
 	req, err := http.NewRequest("POST", host, bytes.NewReader(jcom))
 	if err != nil {
 		return err
@@ -122,7 +115,7 @@ func (rpcClient *Client) scanNetwork(rebuild bool) error {
 	if rebuild {
 		rpcClient.NetModel.ReachableNodes = map[string]*Node{}
 	}
-	err := rpcClient.collectNodeInfoRecursively(rpcClient.defaultEthNode, rpcClient.Port)
+	err := rpcClient.collectNodeInfoRecursively(rpcClient.defaultEthNode)
 	if err != nil {
 		return err
 	}
@@ -130,7 +123,40 @@ func (rpcClient *Client) scanNetwork(rebuild bool) error {
 	return nil
 }
 
-func (rpcClient *Client) Bloop() error {
+func (rpcClient *Client) HeartBeat() (ok bool, nodes int) {
+	if len(rpcClient.NetModel.ReachableNodes) == 0 {
+		ok = false
+		nodes = 0
+		return
+	}
+	old := int64(rpcClient.NetModel.AccessNode.LastBlockNumberSample.BlockNumber)
+	m, err := rpcClient.Bloop()
+	if err != nil {
+		return false, 0
+	}
+	var prev int64
+	nodes = len(m)
+	ok = nodes > 0
+	for _, v := range m {
+		bn := int64(v.BlockNumber)
+		if prev == 0 {
+			prev = bn
+			continue
+		}
+		if r := bn - prev; r > 2 || r < -2 {
+			ok = false
+			break
+		}
+
+	}
+	if prev-old < 1 { //TODO: Elaborate, take timestamp into account
+		ok = false
+	}
+	return
+}
+
+func (rpcClient *Client) Bloop() (blocks map[string]BlockNumberSample, err error) {
+	blocks = map[string]BlockNumberSample{}
 	for _, node := range rpcClient.NetModel.ReachableNodes {
 		data := rpcClient.NewCallData("eth_blockNumber")
 		//TODO: preferred address
@@ -143,25 +169,30 @@ func (rpcClient *Client) Bloop() error {
 			}
 		}
 		if err != nil {
-
-			return err
+			fmt.Println(err)
+			continue
+			//return nil, err
 		}
 		var ok bool
 		node.LastBlockNumberSample, ok = data.ParsedResult.(*BlockNumberSample)
 		if !ok {
 			fmt.Println("Type assertion failed")
+		} else {
+			blocks[node.ShortName()] = *node.LastBlockNumberSample
 		}
+
 	}
-	return nil
+	return
 }
 
 //Collect a single node Info, including Peers
 //This method will not update the NetworkModek
-func (rpcClient *Client) collectNodeInfo(address string, port string) (node *Node, err error) {
+func (rpcClient *Client) collectNodeInfo(address string) (node *Node, err error) {
+	if !strings.Contains(address, ":") {
+		address = address + ":" + rpcClient.defautRPCPort
+	}
 	callData := rpcClient.NewCallData("admin_nodeInfo")
 	callData.Context.TargetNode = address
-	//TODO this is overwritting. The whole RPC port handling due for refactoring
-	rpcClient.Port = port
 	err = rpcClient.actualRpcCall(callData)
 	if err != nil {
 		return nil, err
@@ -177,7 +208,6 @@ func (rpcClient *Client) collectNodeInfo(address string, port string) (node *Nod
 	node.ID = ni.ID
 	node.Name = ni.Name
 	node.ThisNodeInfo = *ni
-	node.RPCPort = port
 	node.Status = Active
 	node.KnownAddresses[address] = true
 	//Get the peer info
@@ -214,7 +244,7 @@ func (rpcClient *Client) collectNodeInfo(address string, port string) (node *Nod
 
 //Collect  nodes Info recursing through peers
 //The effects are in the NetworkModel
-func (rpcClient *Client) collectNodeInfoRecursively(address string, port string) error {
+func (rpcClient *Client) collectNodeInfoRecursively(address string) error {
 	//First find out the network ID, if not known
 	if rpcClient.NetModel.NetworkID == "" {
 		callData := rpcClient.NewCallData("net_version")
@@ -227,11 +257,14 @@ func (rpcClient *Client) collectNodeInfoRecursively(address string, port string)
 		rpcClient.NetModel.NetworkID = string(*sr)
 	}
 
-	newnode, err := rpcClient.collectNodeInfo(address, port)
+	newnode, err := rpcClient.collectNodeInfo(address)
 	if err != nil {
 		return err
 	}
 
+	if &rpcClient.NetModel.AccessNode == nil || rpcClient.NetModel.AccessNode.Name == "" {
+		rpcClient.NetModel.AccessNode = *newnode
+	}
 	if knownnode, ok := rpcClient.NetModel.ReachableNodes[newnode.ID]; ok {
 		//TODO collect addresses
 		knownnode.KnownAddresses[address] = true
@@ -239,7 +272,7 @@ func (rpcClient *Client) collectNodeInfoRecursively(address string, port string)
 	} else { //a new guy!
 		rpcClient.NetModel.ReachableNodes[newnode.ID] = newnode
 		for _, peer := range *newnode.Peers {
-			err := rpcClient.collectNodeInfoRecursively(peer.RemoteHostMachine(), port)
+			err := rpcClient.collectNodeInfoRecursively(peer.RemoteHostMachine())
 			if err != nil {
 				//rpcClient.NetModel.Unreachables[peer.RemoteHostMachine()] = MyTime(time.Now())
 				//fmt.Println(err)
@@ -283,12 +316,6 @@ func CamelCaseKnownCommand(command *string) bool {
 	}
 	return false
 }
-
-type SimpleCommand string
-
-const Rescan SimpleCommand = "rescan"
-const Discover SimpleCommand = "discover"
-const Bloop SimpleCommand = "bloop"
 
 var KnownEthCommands = []string{"admin_addPeer", "debug_backtraceAt", "miner_setExtra", "personal_ecRecover", "txpool_content",
 	"admin_datadir", "debug_blockProfile", "miner_setGasPrice", "personal_importRawKey", "txpool_inspect",

@@ -33,7 +33,7 @@ func NewRenderer() *Renderer {
 	return r
 }
 
-func (r *Renderer) RenderResponse(w io.Writer, name string, data interface{}) {
-	r.templates.ExecuteTemplate(w, name, data)
-	return
+func (r *Renderer) RenderResponse(w io.Writer, name string, data interface{}) error {
+	return r.templates.ExecuteTemplate(w, name, data)
+
 }

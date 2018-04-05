@@ -26,7 +26,7 @@ func NewBlockchainNet() *BlockchainNet {
 type MyTime time.Time
 
 func (mt MyTime) String() string {
-	return time.Time(mt).Format(time.RFC822)
+	return time.Time(mt).Format(time.RFC1123)
 }
 
 type NodeStatus string
@@ -43,7 +43,6 @@ type Node struct {
 	ID                    string
 	ThisNodeInfo          NodeInfo
 	Name                  string
-	RPCPort               string
 	KnownAddresses        map[string]bool
 	Peers                 *PeerArray
 	LastBlockNumberSample *BlockNumberSample

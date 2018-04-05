@@ -164,6 +164,9 @@ func (bns *BlockNumberSample) UnmarshalJSON(raw []byte) error {
 func (bns *BlockNumberSample) stamp() {
 	bns.Sampled = MyTime(time.Now())
 }
+func (bns *BlockNumberSample) String() string {
+	return fmt.Sprintf("Block number: %v sampled at %s", bns.BlockNumber, bns.Sampled)
+}
 
 //Hijacked from https://github.com/onrik/ethrpc/blob/master/ethrpc.go
 type EthResponse struct {
