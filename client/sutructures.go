@@ -44,49 +44,42 @@ func Decode(reader io.Reader, data *CallData) error {
 		return nil // it is an error, but not the Client's error
 	}
 
-	var p ResultType
+	var p interface{}
 	switch data.Command.Method {
-	case "admin_datadir": // All the single-strings results fall here
+	case "admin_datadir", "net_version": // All the single-strings results fall here
 		s := StringResult("")
 		p = &s
 	case "admin_peers":
 		p = &PeerArray{}
 
 	case "eth_blockNumber": //Result is not a struct, just an 0xdddd string representing a number
-		b := HexString(0)
-		p = &b
+		//b := HexString(0)
+		//p = &b
+		p = &BlockNumberSample{}
 	case "admin_nodeInfo":
 		p = &NodeInfo{}
 	case "txpool_status":
-		p = &TxpoolStatus{}
+		p = &TxpoolStatusSample{}
 	}
 	if p != nil {
-		err = parseWrapper(p, data)
+		err = json.Unmarshal(data.Response.Result, p)
+		if err == nil {
+			data.Parsed = true
+			data.ParsedResult = p
+			if s, ok := p.(stampable); ok {
+				s.stamp()
+			}
+		}
 	}
 	if err != nil {
 		fmt.Println(err)
 	}
-
 	return err
 }
 
-//An interface to make Decode() bearable.
-//Known ResultTypes must implement the parse() method
-type ResultType interface {
-	parse(*CallData) error
-}
-
-//Just to save a few lines on the boilerplate code
-func parseWrapper(parseable ResultType, data *CallData) error {
-
-	err := parseable.parse(data)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	data.Parsed = true
-	data.ParsedResult = parseable
-	return nil
+//Just playing with the idea of timestamping the measurements
+type stampable interface {
+	stamp()
 }
 
 //This is inlined from github.com/ethereum/go-ethereum/p2p/server.go
@@ -131,58 +124,45 @@ func (p PeerInfo) RemoteHostMachine() string {
 	return p.Network.RemoteAddress[:strings.Index(p.Network.RemoteAddress, ":")]
 }
 
-//A type to hook the "parse()" method on. *This* is a ResultType.
+//A type to hook the "parse()" method on. *This* is a ParseableResultType.
 type PeerArray []PeerInfo
-
-func (pa *PeerArray) parse(data *CallData) error { // Hope this works - an array is already a pointer...
-	return json.Unmarshal(data.Response.Result, &pa)
-}
 
 //If the json "Result" is just a string
 type StringResult string
 
-func (dd *StringResult) parse(data *CallData) error {
-	return json.Unmarshal(data.Response.Result, &dd)
-}
-
 //txpool_status structure - nothing appropriate found in geth :-(
-type TxpoolStatus struct {
+type TxpoolStatusSample struct {
 	Pending HexString `json:"pending",string`
 	Queued  HexString `json:"queued",string`
-	Sampled time.Time `json:"-"`
+	Sampled MyTime    `json:"-"`
+}
+
+func (txs *TxpoolStatusSample) stamp() {
+	txs.Sampled = MyTime(time.Now())
 }
 
 type HexString int64
 
 func (h *HexString) UnmarshalText(text []byte) (err error) {
-	var tmpS string
 	var tmpI int64
-	tmpS = string(text)
-	if l := len(tmpS) - 1; l > 1 {
-		if tmpS[0] == '"' {
-			tmpS = tmpS[1:]
-			l--
-		}
-		if tmpS[l] == '"' {
-			tmpS = tmpS[:l]
-		}
-	}
-	tmpI, err = strconv.ParseInt(tmpS, 0, 64)
+	tmpI, err = strconv.ParseInt(string(text), 0, 64)
 	*h = HexString(tmpI)
 	return err
 }
 
-func (h *HexString) parse(data *CallData) error {
-	return h.UnmarshalText(data.Response.Result)
+//As the name says it
+type BlockNumberSample struct {
+	BlockNumber HexString
+	Sampled     MyTime
 }
 
-func (txs *TxpoolStatus) parse(data *CallData) error {
-	err := json.Unmarshal(data.Response.Result, &txs)
-	if err != nil {
-		return err
-	}
-	txs.Sampled = time.Now()
-	return nil
+//The RPC call returns just an 0x123 string...
+func (bns *BlockNumberSample) UnmarshalJSON(raw []byte) error {
+	bns.BlockNumber = HexString(0)
+	return json.Unmarshal(raw, &bns.BlockNumber)
+}
+func (bns *BlockNumberSample) stamp() {
+	bns.Sampled = MyTime(time.Now())
 }
 
 //Hijacked from https://github.com/onrik/ethrpc/blob/master/ethrpc.go

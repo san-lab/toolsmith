@@ -3,8 +3,8 @@
 Reachable nodes: </br>
     {{range .ReachableNodes}}
         name: {{.ShortName}} id: {{.IDHead 10}}...{{.IDTail 10}} </br>
-        Status: {{ .Status}} BlockNumber: {{.LastBlockNumberQuery.BlockNumber}} reported at {{.LastBlockNumberQuery.BlockQueryTime}}</br>
-        Peer count: <a href="/{{.PrefAddress}}/admin_peers"> {{len .Peers}}</a> Known addresses: {{len .KnownAddresses}} <a  href="/{{.PrefAddress }}/txpool_inspect"> txpool</a>
+        Status: {{ .Status}}, BlockNumber: {{.LastBlockNumberSample.BlockNumber}} reported at {{.LastBlockNumberSample.Sampled}}</br>
+        Peer count: <a href="/{{.PrefAddress}}/admin_peers"> {{len .Peers}}</a>, Known addresses: {{len .KnownAddresses}} <a  href="/{{.PrefAddress }}/txpool_inspect"> txpool: {{.TxpoolStatus}}</a>
         </br>
     {{end}}
 </p>

@@ -44,7 +44,6 @@ func NewClient(ethHost string, port string) (c *Client, err error) {
 	c.nodes = make(map[string]bool)
 	c.seq = 0
 	c.httpClient.Timeout = defaultTimeout
-	c.r = templates.NewRenderer()
 	//TODO handle error
 	c.LocalInfo, _ = GetLocalInfo()
 	c.NetModel = *NewBlockchainNet()
@@ -128,6 +127,10 @@ func (rpcClient *Client) scanNetwork(rebuild bool) error {
 		return err
 	}
 
+	return nil
+}
+
+func (rpcClient *Client) Bloop() error {
 	for _, node := range rpcClient.NetModel.ReachableNodes {
 		data := rpcClient.NewCallData("eth_blockNumber")
 		//TODO: preferred address
@@ -143,10 +146,12 @@ func (rpcClient *Client) scanNetwork(rebuild bool) error {
 
 			return err
 		}
-
-		node.LastBlockNumberQuery = BlockNumberQuery{int64(*data.ParsedResult.(*HexString)), MyTime(time.Now())}
+		var ok bool
+		node.LastBlockNumberSample, ok = data.ParsedResult.(*BlockNumberSample)
+		if !ok {
+			fmt.Println("Type assertion failed")
+		}
 	}
-
 	return nil
 }
 
@@ -175,7 +180,7 @@ func (rpcClient *Client) collectNodeInfo(address string, port string) (node *Nod
 	node.RPCPort = port
 	node.Status = Active
 	node.KnownAddresses[address] = true
-
+	//Get the peer info
 	callData = rpcClient.NewCallData("admin_peers")
 	callData.Context.TargetNode = address
 	err = rpcClient.actualRpcCall(callData)
@@ -186,16 +191,47 @@ func (rpcClient *Client) collectNodeInfo(address string, port string) (node *Nod
 	if !ok {
 		return node, errors.New("Could not parse the result of Peers of " + address)
 	}
+	//Get the txpool status
+	callData.Command.Method = "txpool_status"
+	err = rpcClient.actualRpcCall(callData)
+	if err != nil {
+		return node, err
+	}
+	//Get the BlockNumber
+	node.TxpoolStatus = callData.ParsedResult.(*TxpoolStatusSample)
+	callData.Command.Method = "eth_blockNumber"
+	err = rpcClient.actualRpcCall(callData)
+	if err != nil {
+		return node, err
+	}
+	node.LastBlockNumberSample, ok = callData.ParsedResult.(*BlockNumberSample)
+	if !ok {
+		fmt.Println("Type assertion failed")
+	}
+
 	return node, nil
 }
 
 //Collect  nodes Info recursing through peers
 //The effects are in the NetworkModel
 func (rpcClient *Client) collectNodeInfoRecursively(address string, port string) error {
+	//First find out the network ID, if not known
+	if rpcClient.NetModel.NetworkID == "" {
+		callData := rpcClient.NewCallData("net_version")
+		callData.Context.TargetNode = address
+		err := rpcClient.actualRpcCall(callData)
+		if err != nil {
+			return err
+		}
+		sr := callData.ParsedResult.(*StringResult)
+		rpcClient.NetModel.NetworkID = string(*sr)
+	}
+
 	newnode, err := rpcClient.collectNodeInfo(address, port)
 	if err != nil {
 		return err
 	}
+
 	if knownnode, ok := rpcClient.NetModel.ReachableNodes[newnode.ID]; ok {
 		//TODO collect addresses
 		knownnode.KnownAddresses[address] = true
@@ -265,10 +301,9 @@ var KnownEthCommands = []string{"admin_addPeer", "debug_backtraceAt", "miner_set
 	"admin_stopWS", "debug_seedHashsign", "eth_gasPrice",
 	"eth_accounts", "eth_blockNumber", "eth_getBalance", "eth_getStorageAt",
 	"eth_getTransactionCount", "eth_getBlockTransactionCountByHash", "eth_getBlockTransactionCountByNumber",
-	"eth_getUncleCountByBlockHash"}
-var otherCommands = "web3_clientVersion,web3_sha3,net_version,net_peerCount,net_listening,eth_protocolVersion," +
-	"eth_syncing,eth_coinbase,eth_mining,eth_hashrate," +
-	"eth_getUncleCountByBlockNumber,eth_getCode,eth_sign,eth_sendTransaction,eth_sendRawTransaction,eth_call,eth_estimateGas," +
+	"eth_getUncleCountByBlockHash", "web3_clientVersion", "web3_sha3", "net_version", "net_peerCount",
+	"net_listening", "eth_protocolVersion", "eth_syncing", "eth_coinbase", "eth_mining", "eth_hashrate"}
+var otherCommands = "eth_getUncleCountByBlockNumber,eth_getCode,eth_sign,eth_sendTransaction,eth_sendRawTransaction,eth_call,eth_estimateGas," +
 	"eth_getBlockByHash,eth_getBlockByNumber,eth_getTransactionByHash,eth_getTransactionByBlockHashAndIndex," +
 	"eth_getTransactionByBlockNumberAndIndex," +
 	"eth_getTransactionReceipt,eth_getUncleByBlockHashAndIndex,eth_getUncleByBlockNumberAndIndex,eth_getCompilers,eth_compileLLL," +

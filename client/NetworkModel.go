@@ -39,14 +39,15 @@ const Unreachable NodeStatus = "unreachable"
 
 //A structure to keep the information about a single node of the BC network
 type Node struct {
-	Status               NodeStatus
-	ID                   string
-	ThisNodeInfo         NodeInfo
-	Name                 string
-	RPCPort              string
-	KnownAddresses       map[string]bool
-	Peers                *PeerArray
-	LastBlockNumberQuery BlockNumberQuery
+	Status                NodeStatus
+	ID                    string
+	ThisNodeInfo          NodeInfo
+	Name                  string
+	RPCPort               string
+	KnownAddresses        map[string]bool
+	Peers                 *PeerArray
+	LastBlockNumberSample *BlockNumberSample
+	TxpoolStatus          *TxpoolStatusSample
 }
 
 //Extract the short name from the NodeAddress name
@@ -82,9 +83,4 @@ func NewNode() *Node {
 	n.ThisNodeInfo = NodeInfo{}
 	n.KnownAddresses = map[string]bool{}
 	return n
-}
-
-type BlockNumberQuery struct {
-	BlockNumber    int64
-	BlockQueryTime MyTime
 }

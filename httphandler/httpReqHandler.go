@@ -133,6 +133,8 @@ func (lhh *LilHttpHandler) RpcCallAndRespond(w http.ResponseWriter, r *http.Requ
 			lhh.r.RenderResponse(w, "blockNumber", callData)
 		case "admin_peers":
 			lhh.r.RenderResponse(w, "peers", callData)
+		case "txpool_status":
+			lhh.r.RenderResponse(w, "txpoolStatus", callData)
 		default:
 			lhh.r.RenderResponse(w, "raw", callData)
 
