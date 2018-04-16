@@ -1,11 +1,8 @@
 package client
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"strconv"
 	"strings"
 	"time"
@@ -15,27 +12,9 @@ import (
 
 //Two-step json unmarshalling. First from reader into CallData.Response, the "result" stays as 'rawMessage'.
 //Then - if the result is a known structure - it is decoded into CallData.Result.ParsedResult
-func Decode(reader io.Reader, data *CallData) error {
-	respBytes, err := ioutil.ReadAll(reader)
-	if err != nil {
-		return err
-	}
-
-	//if data.RawJson {
-	jcom, err := json.Marshal(data.Command)
-	if err != nil {
-		fmt.Println(err) //Not sure if one should do more - this is Marshalling our own command...
-
-	}
-	data.JsonRequest = string(jcom)
-	var buf bytes.Buffer
-	err = json.Indent(&buf, respBytes, "", " ")
-	data.JsonResponse = buf.String()
-	//return err
-	//}
-
-	//err := json.NewDecoder(reader).Decode(&data.Response)
-	err = json.Unmarshal(respBytes, &data.Response)
+func Decode(respBytes []byte, data *CallData) error {
+	data.Parsed = false
+	err := json.Unmarshal(respBytes, &data.Response)
 	if err != nil {
 		return err
 	}

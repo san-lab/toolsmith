@@ -16,8 +16,9 @@ const discover = "discovernetwork"
 const bloop = "bloop"
 const rescan = "rescan"
 const heartbeat = "heartbeat"
+const debugOn = "debugon"
+const debugOff = "debugoff"
 
-var KnownLocalCommands = []string{toggle, discover}
 
 //This is the glue between the http requests and the (hopefully) generic RPC client
 
@@ -81,6 +82,12 @@ func (lhh *LilHttpHandler) GenericCommand(w http.ResponseWriter, r *http.Request
 	case heartbeat:
 		ok, nodes := lhh.rpcClient.HeartBeat()
 		fmt.Fprintf(w, "Network heartbeat: %v for %v nodes", ok, nodes)
+	case debugOff:
+		lhh.rpcClient.DebugMode=false
+		lhh.r.RenderResponse(w, "home", lhh.rpcClient)
+	case debugOn:
+		lhh.rpcClient.DebugMode=true
+		lhh.r.RenderResponse(w, "home", lhh.rpcClient)
 	default:
 		err = errors.New(fmt.Sprintf("Unknown command: %s", comm))
 	}

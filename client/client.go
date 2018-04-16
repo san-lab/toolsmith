@@ -11,21 +11,22 @@ import (
 	"os"
 	"strings"
 	"time"
+	"io/ioutil"
 )
 
 //A rest api client, wrapping an http client
 //The struct also contains a map of addresses of known nodes' end-points
 //The field Port - to memorize the default Port (a bit of a stretch)
 type Client struct {
-	defaultEthNode string
+	DefaultEthNode string
 	UserAgent      string
 	httpClient     *http.Client
-	nodes          map[string]bool
 	seq            uint
 	r              *templates.Renderer
 	LocalInfo      CallContext
-	NetModel       BlockchainNet //TODO oe should it be vice-versa?
-	defautRPCPort  string
+	NetModel       BlockchainNet
+	DefaultRPCPort  string
+	DebugMode      bool
 }
 
 const defaultTimeout = 3 * time.Second
@@ -34,15 +35,13 @@ const defaultTimeout = 3 * time.Second
 //If something like ("www.node:8666",8545) is passed, an error is thrown
 func NewClient(ethHost string) (c *Client, err error) {
 	c = &Client{httpClient: http.DefaultClient}
-	c.defaultEthNode = ethHost
-	c.defautRPCPort = strings.Split(ethHost, ":")[1]
-	c.nodes = make(map[string]bool)
+	c.DefaultEthNode = ethHost
+	c.DefaultRPCPort = strings.Split(ethHost, ":")[1]
 	c.seq = 0
 	c.httpClient.Timeout = defaultTimeout
 	//TODO handle error
 	c.LocalInfo, _ = GetLocalInfo()
 	c.NetModel = *NewBlockchainNet()
-
 	return
 }
 
@@ -84,19 +83,22 @@ func (rpcClient *Client) nextID() (id uint) {
 func (rpcClient *Client) actualRpcCall(data *CallData) error {
 	data.Command.Id = rpcClient.nextID()
 	jcom, _ := json.Marshal(data.Command)
+	rpcClient.log("About to call: \n" + string(jcom))
 	//TODO: allow to define and memorize node-specific ports
 	host := data.Context.TargetNode
 	if !strings.Contains(host, ":") {
-		host = host + ":" + rpcClient.defautRPCPort
+		host = host + ":" + rpcClient.DefaultRPCPort
 	}
 	host = "http://" + host
 
 	req, err := http.NewRequest("POST", host, bytes.NewReader(jcom))
 	if err != nil {
+		rpcClient.log(fmt.Sprintf("%s",err))
 		return err
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", rpcClient.UserAgent)
+	req.Header.Set("Content-type", "application/json")
 	resp, err := rpcClient.httpClient.Do(req)
 
 	if err != nil {
@@ -105,7 +107,24 @@ func (rpcClient *Client) actualRpcCall(data *CallData) error {
 		return err
 	}
 	defer resp.Body.Close()
-	err = Decode(resp.Body, data)
+	//Todo: check Response status is 200!!!
+	if resp.StatusCode!=200 {
+		err = errors.New(resp.Status)
+		return err
+	}
+	respBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		rpcClient.log(fmt.Sprintf("%s",err))
+		return err
+	}
+	data.JsonRequest = string(jcom)
+	var buf bytes.Buffer
+	err = json.Indent(&buf, respBytes, "", " ")
+	if err != nil {rpcClient.log(fmt.Sprint(err))} //irrelevant error not worth returning
+	data.JsonResponse = buf.String()
+	rpcClient.log("Returned:\n"+data.JsonResponse)
+	err = Decode(respBytes, data)
+	if err != nil {rpcClient.log(fmt.Sprint(err))}
 	return err
 }
 
@@ -115,7 +134,7 @@ func (rpcClient *Client) scanNetwork(rebuild bool) error {
 	if rebuild {
 		rpcClient.NetModel.ReachableNodes = map[string]*Node{}
 	}
-	err := rpcClient.collectNodeInfoRecursively(rpcClient.defaultEthNode)
+	err := rpcClient.collectNodeInfoRecursively(rpcClient.DefaultEthNode)
 	if err != nil {
 		return err
 	}
@@ -138,7 +157,11 @@ func (rpcClient *Client) HeartBeat() (ok bool, nodes int) {
 	nodes = len(m)
 	ok = nodes > 0
 	for _, v := range m {
-		bn := int64(v.BlockNumber)
+		bns , ok1 := v.(BlockNumberSample)
+		if ok = ok1; ! ok {
+			return
+		}
+		bn := int64(bns.BlockNumber)
 		if prev == 0 {
 			prev = bn
 			continue
@@ -155,8 +178,8 @@ func (rpcClient *Client) HeartBeat() (ok bool, nodes int) {
 	return
 }
 
-func (rpcClient *Client) Bloop() (blocks map[string]BlockNumberSample, err error) {
-	blocks = map[string]BlockNumberSample{}
+func (rpcClient *Client) Bloop() (blocks map[string]interface{}, err error) {
+	blocks = map[string]interface{}{}
 	for _, node := range rpcClient.NetModel.ReachableNodes {
 		data := rpcClient.NewCallData("eth_blockNumber")
 		//TODO: preferred address
@@ -169,6 +192,7 @@ func (rpcClient *Client) Bloop() (blocks map[string]BlockNumberSample, err error
 			}
 		}
 		if err != nil {
+			blocks[node.ShortName()] = "UNREACHABLE!!!"
 			fmt.Println(err)
 			continue
 			//return nil, err
@@ -189,7 +213,7 @@ func (rpcClient *Client) Bloop() (blocks map[string]BlockNumberSample, err error
 //This method will not update the NetworkModek
 func (rpcClient *Client) collectNodeInfo(address string) (node *Node, err error) {
 	if !strings.Contains(address, ":") {
-		address = address + ":" + rpcClient.defautRPCPort
+		address = address + ":" + rpcClient.DefaultRPCPort
 	}
 	callData := rpcClient.NewCallData("admin_nodeInfo")
 	callData.Context.TargetNode = address
@@ -223,8 +247,9 @@ func (rpcClient *Client) collectNodeInfo(address string) (node *Node, err error)
 	}
 	//Get the txpool status
 	callData.Command.Method = "txpool_status"
+	callData.ParsedResult = nil
 	err = rpcClient.actualRpcCall(callData)
-	if err != nil {
+	if err != nil || !callData.Parsed {
 		return node, err
 	}
 	//Get the BlockNumber
@@ -316,6 +341,13 @@ func CamelCaseKnownCommand(command *string) bool {
 	}
 	return false
 }
+
+func (rpcClient *Client) log(s string) {
+	if rpcClient.DebugMode {
+		fmt.Println(s)
+	}
+}
+
 
 var KnownEthCommands = []string{"admin_addPeer", "debug_backtraceAt", "miner_setExtra", "personal_ecRecover", "txpool_content",
 	"admin_datadir", "debug_blockProfile", "miner_setGasPrice", "personal_importRawKey", "txpool_inspect",
