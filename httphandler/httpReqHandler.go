@@ -18,7 +18,8 @@ const rescan = "rescan"
 const heartbeat = "heartbeat"
 const debugOn = "debugon"
 const debugOff = "debugoff"
-
+const loadtemplates = "loadtemplates"
+const magic = "magicone"
 
 //This is the glue between the http requests and the (hopefully) generic RPC client
 
@@ -43,6 +44,7 @@ func NewHttpHandler(c Config) (lhh *LilHttpHandler, err error) {
 //                                  or: 2 parts - interpreted as /node/ethMethod
 // The port No set at Client initialization is used for the RPC call
 func (lhh *LilHttpHandler) Handler(w http.ResponseWriter, r *http.Request) {
+
 	if r.FormValue(toggle) == "yes" {
 		lhh.rpcClient.LocalInfo.RawMode = !lhh.rpcClient.LocalInfo.RawMode
 	}
@@ -55,45 +57,59 @@ func (lhh *LilHttpHandler) Handler(w http.ResponseWriter, r *http.Request) {
 		if client.CamelCaseKnownCommand(&comm) {
 			lhh.RpcCallAndRespond(w, r, lhh.config.EthHost, comm)
 		} else {
-			lhh.GenericCommand(w, r, comm)
+			lhh.SpecialCommand(w, r, comm)
 		}
 	case 2:
 		eNode := f[0]
 		eMethod := f[1]
 		lhh.RpcCallAndRespond(w, r, eNode, eMethod)
 	default:
-		lhh.r.RenderResponse(w, "home", lhh.rpcClient)
+		rdata := templates.RenderData{TemplateName: "home", HeaderData: lhh.rpcClient.LocalInfo, Client: lhh.rpcClient}
+		lhh.r.RenderResponse(w, rdata)
 	}
 }
 
 //TODO
-func (lhh *LilHttpHandler) GenericCommand(w http.ResponseWriter, r *http.Request, comm string) {
+func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request, comm string) {
 	var err error
+
+	rdata := templates.RenderData{HeaderData: lhh.rpcClient.LocalInfo, TemplateName: templates.Home, Client: lhh.rpcClient}
 	switch comm {
 	case discover:
 		err = lhh.rpcClient.DiscoverNetwork()
-		lhh.r.RenderResponse(w, "network", lhh.rpcClient.NetModel)
+		rdata.TemplateName = templates.Network
+		rdata.BodyData = lhh.rpcClient.NetModel
 	case rescan:
 		err = lhh.rpcClient.Rescan()
-		lhh.r.RenderResponse(w, "network", lhh.rpcClient.NetModel)
+		rdata.TemplateName = templates.Network
+		rdata.BodyData = lhh.rpcClient.NetModel
 	case bloop:
 		m, _ := lhh.rpcClient.Bloop()
-		lhh.r.RenderResponse(w, "listMap", m)
+		rdata.TemplateName = templates.ListMap
+		rdata.BodyData = m
 	case heartbeat:
 		ok, nodes := lhh.rpcClient.HeartBeat()
 		fmt.Fprintf(w, "Network heartbeat: %v for %v nodes", ok, nodes)
+		return
+		//rdata.Error = fmt.Sprintf("Heartbeat: %s for the %v nodes reachable", ok, nodes) //A hack!
 	case debugOff:
-		lhh.rpcClient.DebugMode=false
-		lhh.r.RenderResponse(w, "home", lhh.rpcClient)
+		lhh.rpcClient.DebugMode = false
 	case debugOn:
-		lhh.rpcClient.DebugMode=true
-		lhh.r.RenderResponse(w, "home", lhh.rpcClient)
+		lhh.rpcClient.DebugMode = true
+	case magic:
+		rdata.TemplateName = "magic"
+	case loadtemplates:
+		lhh.r.LoadTemplates()
+
 	default:
-		err = errors.New(fmt.Sprintf("Unknown command: %s", comm))
+		err_msg := fmt.Sprintf("Unknown command: %s", comm)
+		rdata.Error = err_msg
+		err = errors.New(err_msg)
 	}
 	if err != nil {
-		fmt.Fprintln(w, err)
+		fmt.Println(err)
 	}
+	lhh.r.RenderResponse(w, rdata)
 }
 
 // Ethereum RPC call to the eNode and rendering the appropriate HTML result page.
@@ -136,23 +152,24 @@ func (lhh *LilHttpHandler) RpcCallAndRespond(w http.ResponseWriter, r *http.Requ
 		fmt.Fprintln(w, err)
 		return
 	}
-
+	rdata := templates.RenderData{HeaderData:lhh.rpcClient.LocalInfo, BodyData:callData}
 	if showRaw {
-		lhh.r.RenderResponse(w, "raw", callData)
+		rdata.TemplateName=templates.Raw
 	} else {
 		switch eMethod {
 		case "eth_blockNumber":
-			lhh.r.RenderResponse(w, "blockNumber", callData)
+			rdata.TemplateName=templates.BlockNumber
 		case "admin_peers":
-			lhh.r.RenderResponse(w, "peers", callData)
+			rdata.TemplateName= templates.Peers
 		case "txpool_status":
-			lhh.r.RenderResponse(w, "txpoolStatus", callData)
+			rdata.TemplateName=templates.TxpoolStatus
 		default:
-			lhh.r.RenderResponse(w, "raw", callData)
+			rdata.TemplateName=templates.Raw
 
 		}
-	}
 
+	}
+	lhh.r.RenderResponse(w,rdata)
 }
 
 type Config struct {

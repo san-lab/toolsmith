@@ -1,6 +1,6 @@
 {{define "raw" }}
-{{template "header" .Context}}
-    <p>Call: {{.JsonRequest}}<br/>
-    Response: <pre> <code>{{.JsonResponse}}</code></pre></p>
+{{template "header" .HeaderData}}
+    <p>Call: {{.BodyData.JsonRequest}}<br/>
+    Response: <pre> <code>{{.BodyData.JsonResponse}}</code></pre></p>
 {{template "footer"}}
 {{end}}

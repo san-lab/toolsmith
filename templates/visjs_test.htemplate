@@ -1,0 +1,70 @@
+{{define "nodes"}}
+        var icon = '/static/ethereum_32x32.png'
+        var nodes = new vis.DataSet([
+        {id: 1, label: 'miner1', image: icon, shape: 'image'},
+        {id: 2, label: 'miner2', image: icon, shape: 'image'},
+        {id: 3, label: 'miner3', image: icon, shape: 'image'},
+        {id: 4, label: 'sanspain', image: icon, shape: 'image'},
+        {id: 5, label: 'sanportugal', image: icon, shape: 'image'},
+        {id: 6, label: 'sanuk', image: icon, shape: 'image'},
+        ]);
+{{end}}
+
+{{define "magic"}}
+{{template "header" .HeaderData}}
+<!doctype html>
+<html>
+<head>
+    <title>Network | Basic usage</title>
+
+    <script type="text/javascript" src="/static/vis.js"></script>
+    <link href="/static/vis-network.min.css" rel="stylesheet" type="text/css" />
+
+    <style type="text/css">
+        #mynetwork {
+            width: 800px;
+            height: 450px;
+            border: 1px solid lightgray;
+        }
+    </style>
+</head>
+<body>
+
+
+<div id="mynetwork"></div>
+
+<script type="text/javascript">
+    // create an array with nodes
+    {{template "nodes"}}
+
+    // create an array with edges
+    var edges = new vis.DataSet([
+        {from: 1, to: 2, arrows:'to'},
+        {from: 1, to: 3, arrows:'to'},
+        {from: 2, to: 1, arrows:'to'},
+        {from: 2, to: 3, arrows:'to'},
+        {from: 3, to: 1, arrows:'to'},
+        {from: 3, to: 2, arrows:'to'},
+        {from: 4, to: 1, arrows:'to'},
+        {from: 1, to: 4, arrows:'to'},
+        {from: 5, to: 2, arrows:'to'},
+        {from: 2, to: 5, arrows:'to'},
+        {from: 6, to: 3, arrows:'to'},
+        {from: 3, to: 6, arrows:'to'}
+    ]);
+
+    // create a network
+    var container = document.getElementById('mynetwork');
+    var data = {
+        nodes: nodes,
+        edges: edges
+    };
+    var options = {};
+    var network = new vis.Network(container, data, options);
+</script>
+
+
+</body>
+</html>
+{{template "footer"}}
+{{end}}

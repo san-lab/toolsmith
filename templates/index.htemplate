@@ -1,15 +1,14 @@
 {{define "home"}}
-{{template "header" .LocalInfo}}
-    <p>Reaching the net from: <b> {{.LocalInfo.ClientHostName}}</b> <br/>
-    ({{.LocalInfo.ClientIp}})</p>
+{{template "header" .HeaderData}}
+{{with .Error}}Error: {{.}}{{end}}
+    <p>Reaching the net from: <b> {{.Client.LocalInfo.ClientIp}}</b> <br/>
 <ul>
-    <li>rpc port: {{.DefaultRPCPort}}</li>
-    <li>default node: {{.DefaultEthNode}}</li>
-    <li>debug: {{if .DebugMode}} on {{else}} off {{end}}</li>
+    <li>rpc port: {{.Client.DefaultRPCPort}}</li>
+    <li>default node: {{.Client.DefaultEthNode}}</li>
+    <li>debug: {{if .Client.DebugMode}} on {{else}} off {{end}}</li>
     <li>Network id: {{.NetModel.NetworkID}}</li>
-    <li>reachable nodes: {{len .NetModel.ReachableNodes}}</li>
+    <li>reachable nodes: {{len .Client.NetModel.ReachableNodes}}</li>
     <li></li>
 </ul>
-{{template "footer"}}
+{{template "footer" .FooterData}}
 {{end}}
-q

@@ -1,5 +1,5 @@
 {{define "blockNumber"}}
-{{template "header" .Context}}
-And the block number is: {{.ParsedResult}}
-{{template "footer"}}
+{{template "header" .HeaderData}}
+And the block number is: {{.BodyData.ParsedResult}}
+{{template "footer" .FooterData}}
 {{end}}
