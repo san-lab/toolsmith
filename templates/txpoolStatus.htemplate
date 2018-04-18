@@ -1,0 +1,5 @@
+{{define "txpoolStatus"}}
+{{template "header" .Context}}
+TxPool Status: {{.ParsedResult}}
+{{template "footer"}}
+{{end}}

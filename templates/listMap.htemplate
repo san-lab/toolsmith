@@ -1,0 +1,28 @@
+{{define "listMap"}}
+        <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="refresh" content="5" >
+    <meta charset="UTF-8">
+    <title>Blockchain Network Watchcat</title>
+</head>
+<body>
+</div><img src="/static/blockchain_64x64.png" align="left"/>
+<div> <table border="0"><tr><td colspan = 4><H2>Ethereum Private Network Monitoring Tool</H2></td></tr>
+    <tr><td>{{.ClientHostName}}</td><td></td><td>{{with .}} {{template "toggleRawMode" .}} {{end}}<td/>
+        <td>{{template "refresh"}}<td/></tr>
+</table></div>
+
+<hr/>
+The list:
+<table>
+    {{range $key, $val := .}}
+  <tr>
+     <td> {{$key}}:</td>
+      <td>{{$val}}</td>
+
+  </tr>
+    {{end}}
+        </table>
+{{template "footer"}}
+{{end}}
