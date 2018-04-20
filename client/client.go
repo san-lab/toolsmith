@@ -6,27 +6,30 @@ import (
 	"errors"
 	"fmt"
 	"github.com/san-lab/toolsmith/templates"
+	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
 	"os"
 	"strings"
 	"time"
-	"io/ioutil"
 )
 
 //A rest api client, wrapping an http client
 //The struct also contains a map of addresses of known nodes' end-points
 //The field Port - to memorize the default Port (a bit of a stretch)
 type Client struct {
-	DefaultEthNode string
-	UserAgent      string
-	httpClient     *http.Client
-	seq            uint
-	r              *templates.Renderer
-	LocalInfo      CallContext
-	NetModel       BlockchainNet
-	DefaultRPCPort  string
-	DebugMode      bool
+	DefaultEthNode       string
+	UserAgent            string
+	httpClient           *http.Client
+	seq                  uint
+	r                    *templates.Renderer
+	LocalInfo            CallContext
+	NetModel             BlockchainNet
+	DefaultRPCPort       string
+	DebugMode            bool
+	UnreachableAddresses map[string]MyTime
+	VisitedNodes	map[NodeID]MyTime
 }
 
 const defaultTimeout = 3 * time.Second
@@ -42,6 +45,7 @@ func NewClient(ethHost string) (c *Client, err error) {
 	//TODO handle error
 	c.LocalInfo, _ = GetLocalInfo()
 	c.NetModel = *NewBlockchainNet()
+	c.UnreachableAddresses = map[string]MyTime{}
 	return
 }
 
@@ -51,11 +55,29 @@ func (rpcClient *Client) SetTimeout(timeout time.Duration) {
 }
 
 func (rpcClient *Client) DiscoverNetwork() error {
-	return rpcClient.scanNetwork(true)
+	return nil
 }
 
 func (rpcClient *Client) Rescan() error {
-	return rpcClient.scanNetwork(false)
+	rpcClient.UnreachableAddresses = map[string]MyTime{}
+	rpcClient.SetNetworkId()
+	data := rpcClient.NewCallData("admin_nodeInfo")
+	data.Context.TargetNode = rpcClient.DefaultEthNode
+	err := rpcClient.actualRpcCall(data)
+	if err != nil {
+		return err
+	}
+	ni, ok := data.ParsedResult.(*NodeInfo)
+	if !ok {
+		log.Printf("expected %T got %T", ni, data.ParsedResult)
+		return errors.New("Not ok parsing the root node info")
+	}
+	rootnode := NodeFromNodeInfo(ni)
+	rootnode.KnownAddresses[rpcClient.DefaultEthNode] = true
+	rpcClient.NetModel.Nodes[rootnode.ID] = rootnode
+	rpcClient.VisitedNodes =  map[NodeID]MyTime{}  //Boy this is ugly!
+	rpcClient.collectNodeInfoRecursively(rootnode)
+	return nil
 }
 
 //This is the exposed internal API - one method, so the things like mutex, etc. are possible
@@ -93,7 +115,7 @@ func (rpcClient *Client) actualRpcCall(data *CallData) error {
 
 	req, err := http.NewRequest("POST", host, bytes.NewReader(jcom))
 	if err != nil {
-		rpcClient.log(fmt.Sprintf("%s",err))
+		rpcClient.log(fmt.Sprintf("%s", err))
 		return err
 	}
 	req.Header.Set("Accept", "application/json")
@@ -102,48 +124,38 @@ func (rpcClient *Client) actualRpcCall(data *CallData) error {
 	resp, err := rpcClient.httpClient.Do(req)
 
 	if err != nil {
-		fmt.Println(err)
-		rpcClient.NetModel.Unreachables[host] = MyTime(time.Now())
+		log.Println(err)
+		//rpcClient.NetModel.UnreachableNodes[GhostNode(host)] = MyTime(time.Now())
 		return err
 	}
 	defer resp.Body.Close()
 	//Todo: check Response status is 200!!!
-	if resp.StatusCode!=200 {
+	if resp.StatusCode != 200 {
 		err = errors.New(resp.Status)
 		return err
 	}
 	respBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		rpcClient.log(fmt.Sprintf("%s",err))
+		rpcClient.log(fmt.Sprintf("%s", err))
 		return err
 	}
 	data.JsonRequest = string(jcom)
 	var buf bytes.Buffer
 	err = json.Indent(&buf, respBytes, "", " ")
-	if err != nil {rpcClient.log(fmt.Sprint(err))} //irrelevant error not worth returning
+	if err != nil {
+		rpcClient.log(fmt.Sprint(err))
+	} //irrelevant error not worth returning
 	data.JsonResponse = buf.String()
-	rpcClient.log("Returned:\n"+data.JsonResponse)
+	rpcClient.log("Returned:\n" + data.JsonResponse)
 	err = Decode(respBytes, data)
-	if err != nil {rpcClient.log(fmt.Sprint(err))}
+	if err != nil {
+		rpcClient.log(fmt.Sprint(err))
+	}
 	return err
 }
 
-//Scan the network following successive peer lists.
-//If rebiuld == true discard the old network model
-func (rpcClient *Client) scanNetwork(rebuild bool) error {
-	if rebuild {
-		rpcClient.NetModel.ReachableNodes = map[string]*Node{}
-	}
-	err := rpcClient.collectNodeInfoRecursively(rpcClient.DefaultEthNode)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (rpcClient *Client) HeartBeat() (ok bool, nodes int) {
-	if len(rpcClient.NetModel.ReachableNodes) == 0 {
+	if len(rpcClient.NetModel.Nodes) == 0 {
 		ok = false
 		nodes = 0
 		return
@@ -157,8 +169,8 @@ func (rpcClient *Client) HeartBeat() (ok bool, nodes int) {
 	nodes = len(m)
 	ok = nodes > 0
 	for _, v := range m {
-		bns , ok1 := v.(BlockNumberSample)
-		if ok = ok1; ! ok {
+		bns, ok1 := v.(BlockNumberSample)
+		if ok = ok1; !ok {
 			return
 		}
 		bn := int64(bns.BlockNumber)
@@ -180,7 +192,10 @@ func (rpcClient *Client) HeartBeat() (ok bool, nodes int) {
 
 func (rpcClient *Client) Bloop() (blocks map[string]interface{}, err error) {
 	blocks = map[string]interface{}{}
-	for _, node := range rpcClient.NetModel.ReachableNodes {
+	for _, node := range rpcClient.NetModel.Nodes {
+		if !node.Reachable {
+			continue
+		}
 		data := rpcClient.NewCallData("eth_blockNumber")
 		//TODO: preferred address
 		var err error
@@ -209,71 +224,11 @@ func (rpcClient *Client) Bloop() (blocks map[string]interface{}, err error) {
 	return
 }
 
-//Collect a single node Info, including Peers
-//This method will not update the NetworkModek
-func (rpcClient *Client) collectNodeInfo(address string) (node *Node, err error) {
-	if !strings.Contains(address, ":") {
-		address = address + ":" + rpcClient.DefaultRPCPort
-	}
-	callData := rpcClient.NewCallData("admin_nodeInfo")
-	callData.Context.TargetNode = address
-	err = rpcClient.actualRpcCall(callData)
-	if err != nil {
-		return nil, err
-	}
-
-	ni, ok := callData.ParsedResult.(*NodeInfo)
-	if !ok {
-		fmt.Printf("expected %T got %T", ni, callData.ParsedResult)
-		return nil, errors.New("could not parse the NodeInfo")
-	}
-
-	node = NewNode()
-	node.ID = ni.ID
-	node.Name = ni.Name
-	node.ThisNodeInfo = *ni
-	node.Status = Active
-	node.KnownAddresses[address] = true
-	//Get the peer info
-	callData = rpcClient.NewCallData("admin_peers")
-	callData.Context.TargetNode = address
-	err = rpcClient.actualRpcCall(callData)
-	if err != nil {
-		return node, err //Partially successful method call
-	}
-	node.Peers, ok = callData.ParsedResult.(*PeerArray)
-	if !ok {
-		return node, errors.New("Could not parse the result of Peers of " + address)
-	}
-	//Get the txpool status
-	callData.Command.Method = "txpool_status"
-	callData.ParsedResult = nil
-	err = rpcClient.actualRpcCall(callData)
-	if err != nil || !callData.Parsed {
-		return node, err
-	}
-	//Get the BlockNumber
-	node.TxpoolStatus = callData.ParsedResult.(*TxpoolStatusSample)
-	callData.Command.Method = "eth_blockNumber"
-	err = rpcClient.actualRpcCall(callData)
-	if err != nil {
-		return node, err
-	}
-	node.LastBlockNumberSample, ok = callData.ParsedResult.(*BlockNumberSample)
-	if !ok {
-		fmt.Println("Type assertion failed")
-	}
-
-	return node, nil
-}
-
-//Collect  nodes Info recursing through peers
-//The effects are in the NetworkModel
-func (rpcClient *Client) collectNodeInfoRecursively(address string) error {
+func (rpcClient *Client) SetNetworkId() error {
 	//First find out the network ID, if not known
 	if rpcClient.NetModel.NetworkID == "" {
 		callData := rpcClient.NewCallData("net_version")
-		callData.Context.TargetNode = address
+		callData.Context.TargetNode = rpcClient.DefaultEthNode
 		err := rpcClient.actualRpcCall(callData)
 		if err != nil {
 			return err
@@ -281,28 +236,86 @@ func (rpcClient *Client) collectNodeInfoRecursively(address string) error {
 		sr := callData.ParsedResult.(*StringResult)
 		rpcClient.NetModel.NetworkID = string(*sr)
 	}
+	return nil
+}
 
-	newnode, err := rpcClient.collectNodeInfo(address)
+//Update a  node Info, includig peers, txpool and block number
+func (rpcClient *Client) collectNodeInfo(node *Node) (err error) {
+	log.Println("Collecting node info on " + node.ShortName())
+	if len(node.ID) == 0 {
+		return errors.New("Cannot get info of a blank node")
+	}
+	rpcClient.NetModel.Nodes[node.ID] = node
+	callData := rpcClient.NewCallData("admin_peers")
+	var prefaddr string
+	err = errors.New(fmt.Sprintf("No known/working address for %s", node.ShortName()))
+	for address := range node.KnownAddresses { //Dial on all numbers
+		if _, ok := rpcClient.UnreachableAddresses[address]; ok {
+			continue
+		}
+		callData.Context.TargetNode = address
+		err = rpcClient.actualRpcCall(callData)
+		if err == nil {
+			prefaddr = address
+			break
+		}
+		rpcClient.UnreachableAddresses[address] = MyTime(time.Now())
+
+	}
+	if err != nil { //no contact on any address
+		node.Reachable = false
+		return err
+	}
+	node.Reachable = true
+	var ok bool
+	node.JSONPeers, ok = callData.ParsedResult.(*PeerArray)
+	if !ok {
+		return errors.New("Could not parse the result of JSONPeers of " + prefaddr)
+	}
+
+	for _, pi := range *node.JSONPeers {
+		pn := rpcClient.NetModel.Nodes[NodeID(pi.ID)]
+		if pn == nil {
+			pn = NodeFromPeerInfo(&pi)
+			rpcClient.NetModel.Nodes[NodeID(pi.ID)] = pn
+		}
+		pn.KnownAddresses[pi.RemoteHostMachine()] = true
+		log.Printf("Adding %s as a peer of %s\n", pn.ShortName(), node.ShortName())
+		node.Peers[pi.RemoteHostMachine()] = *pn
+	}
+	//Get the txpool status
+	callData.Command.Method = "txpool_status"
+	callData.ParsedResult = nil
+	err = rpcClient.actualRpcCall(callData)
+	if err != nil || !callData.Parsed {
+		return err
+	}
+	//Get the BlockNumber
+	node.TxpoolStatus = callData.ParsedResult.(*TxpoolStatusSample)
+	callData.Command.Method = "eth_blockNumber"
+	err = rpcClient.actualRpcCall(callData)
 	if err != nil {
 		return err
 	}
-
-	if &rpcClient.NetModel.AccessNode == nil || rpcClient.NetModel.AccessNode.Name == "" {
-		rpcClient.NetModel.AccessNode = *newnode
+	node.LastBlockNumberSample, ok = callData.ParsedResult.(*BlockNumberSample)
+	if !ok {
+		log.Println("Type assertion failed")
 	}
-	if knownnode, ok := rpcClient.NetModel.ReachableNodes[newnode.ID]; ok {
-		//TODO collect addresses
-		knownnode.KnownAddresses[address] = true
-		fmt.Printf("Found aganin %s\n", knownnode.ID)
-	} else { //a new guy!
-		rpcClient.NetModel.ReachableNodes[newnode.ID] = newnode
-		for _, peer := range *newnode.Peers {
-			err := rpcClient.collectNodeInfoRecursively(peer.RemoteHostMachine())
-			if err != nil {
-				//rpcClient.NetModel.Unreachables[peer.RemoteHostMachine()] = MyTime(time.Now())
-				//fmt.Println(err)
-			}
+	return nil
+}
 
+//Collect  nodes Info recursing through peers
+//The effects are in the NetworkModel
+func (rpcClient *Client) collectNodeInfoRecursively(parent *Node) error {
+	err := rpcClient.collectNodeInfo(parent)
+	if err != nil {
+		return err
+	}
+	rpcClient.VisitedNodes[parent.ID] = MyTime(time.Now())
+
+	for _, peernode := range parent.Peers {
+		if _, beenThere :=rpcClient.VisitedNodes[peernode.ID]; !beenThere {
+			rpcClient.collectNodeInfoRecursively(&peernode) //ignoring the connection error - the unreachables set already
 		}
 	}
 	return nil
@@ -344,10 +357,9 @@ func CamelCaseKnownCommand(command *string) bool {
 
 func (rpcClient *Client) log(s string) {
 	if rpcClient.DebugMode {
-		fmt.Println(s)
+		log.Println(s)
 	}
 }
-
 
 var KnownEthCommands = []string{"admin_addPeer", "debug_backtraceAt", "miner_setExtra", "personal_ecRecover", "txpool_content",
 	"admin_datadir", "debug_blockProfile", "miner_setGasPrice", "personal_importRawKey", "txpool_inspect",
@@ -361,12 +373,12 @@ var KnownEthCommands = []string{"admin_addPeer", "debug_backtraceAt", "miner_set
 	"eth_accounts", "eth_blockNumber", "eth_getBalance", "eth_getStorageAt",
 	"eth_getTransactionCount", "eth_getBlockTransactionCountByHash", "eth_getBlockTransactionCountByNumber",
 	"eth_getUncleCountByBlockHash", "web3_clientVersion", "web3_sha3", "net_version", "net_peerCount",
-	"net_listening", "eth_protocolVersion", "eth_syncing", "eth_coinbase", "eth_mining", "eth_hashrate"}
-var otherCommands = "eth_getUncleCountByBlockNumber,eth_getCode,eth_sign,eth_sendTransaction,eth_sendRawTransaction,eth_call,eth_estimateGas," +
-	"eth_getBlockByHash,eth_getBlockByNumber,eth_getTransactionByHash,eth_getTransactionByBlockHashAndIndex," +
-	"eth_getTransactionByBlockNumberAndIndex," +
-	"eth_getTransactionReceipt,eth_getUncleByBlockHashAndIndex,eth_getUncleByBlockNumberAndIndex,eth_getCompilers,eth_compileLLL," +
-	"eth_compileSolidity,eth_compileSerpent,eth_newFilter,eth_newBlockFilter,eth_newPendingTransactionFilter,eth_uninstallFilter," +
-	"eth_getFilterChanges,eth_getFilterLogs,eth_getLogs,eth_getWork,eth_submitWork,eth_submitHashrate,db_putString,db_getString," +
-	"db_putHex,db_getHex,shh_post,shh_version,shh_newIdentity,shh_hasIdentity,shh_newGroup,shh_addToGroup,shh_newFilter," +
-	"shh_uninstallFilter,shh_getFilterChanges,shh_getMessages"
+	"net_listening", "eth_protocolVersion", "eth_syncing", "eth_coinbase", "eth_mining", "eth_hashrate",
+	"eth_getUncleCountByBlockNumber", "eth_getCode", "eth_sign", "eth_sendTransaction", "eth_sendRawTransaction",
+	"eth_call", "eth_estimateGas", "eth_getBlockByHash", "eth_getBlockByNumber", "eth_getTransactionByHash",
+	"eth_getTransactionByBlockHashAndIndex", "eth_getTransactionByBlockNumberAndIndex", "var otherCommands",
+	"eth_getTransactionReceipt", "eth_getUncleByBlockHashAndIndex", "eth_getUncleByBlockNumberAndIndex", "eth_getCompilers",
+	"eth_compileLLL", "eth_compileSolidity" + "eth_compileSerpent", "eth_newFilter", "eth_newBlockFilter", "eth_newPendingTransactionFilter",
+	"eth_uninstallFilter", "eth_getFilterChanges", "eth_getFilterLogs", "eth_getLogs", "eth_getWork", "eth_submitWork", "eth_submitHashrate",
+	"db_putString", "db_getString", "db_putHex", "db_getHex", "shh_post", "shh_version", "shh_newIdentity", "shh_hasIdentity", "shh_newGroup",
+	"shh_addToGroup", "shh_newFilter", "shh_uninstallFilter", "shh_getFilterChanges", "shh_getMessages"}

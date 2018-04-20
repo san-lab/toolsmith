@@ -1,5 +1,5 @@
 {{define "blockNumber"}}
 {{template "header" .HeaderData}}
-And the block number is: {{.BodyData.ParsedResult}}
+The <b>{{.BodyData.Command.Method}}</b> is: {{.BodyData.ParsedResult}}
 {{template "footer" .FooterData}}
 {{end}}

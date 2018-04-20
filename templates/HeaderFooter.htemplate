@@ -3,6 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    {{if gt .GetRefresh  0}}<meta http-equiv="refresh" content={{.GetRefresh}} >{{end}}
     <title>Blockchain Network Watchcat</title>
 </head>
 <body>

@@ -68,7 +68,7 @@ type stampable interface {
 type NodeInfo struct {
 	ID    string `json:"id"`    // Unique node identifier (also the encryption key)
 	Name  string `json:"name"`  // Name of the node, including client type, version, OS, custom data
-	Enode string `json:"enode"` // Enode URL for adding this peer from remote Peers
+	Enode string `json:"enode"` // Enode URL for adding this peer from remote JSONPeers
 	IP    string `json:"ip"`    // IP address of the node
 	Ports struct {
 		Discovery int `json:"discovery"` // UDP listening port for discovery protocol
@@ -190,4 +190,13 @@ type CallContext struct {
 	TargetNode     string
 	RawMode        bool
 	RequestPath    string
+	Refresh        int
+}
+
+//Implementing the HeaderData methods
+func (cc CallContext) GetRefresh() int {
+	return cc.Refresh
+}
+func (cc *CallContext) SetRefresh(i int) {
+	cc.Refresh = i
 }

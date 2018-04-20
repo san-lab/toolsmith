@@ -1,15 +1,16 @@
-{{define "nodes"}}
-        var icon = '/static/ethereum_32x32.png'
+
+
+        {{define "nodes"}}
+
         var nodes = new vis.DataSet([
-        {id: 1, label: 'miner1', image: icon, shape: 'image'},
-        {id: 2, label: 'miner2', image: icon, shape: 'image'},
-        {id: 3, label: 'miner3', image: icon, shape: 'image'},
-        {id: 4, label: 'sanspain', image: icon, shape: 'image'},
-        {id: 5, label: 'sanportugal', image: icon, shape: 'image'},
-        {id: 6, label: 'sanuk', image: icon, shape: 'image'},
+        {{.VisjsNodes}}
+        {{end}}
+
+{{define "edges"}}
+        var edges = new vis.DataSet([
+        {{.VisjsEdges}}
         ]);
 {{end}}
-
 {{define "magic"}}
 {{template "header" .HeaderData}}
 <!doctype html>
@@ -35,23 +36,10 @@
 
 <script type="text/javascript">
     // create an array with nodes
-    {{template "nodes"}}
+    {{template "nodes" .BodyData}}
 
     // create an array with edges
-    var edges = new vis.DataSet([
-        {from: 1, to: 2, arrows:'to'},
-        {from: 1, to: 3, arrows:'to'},
-        {from: 2, to: 1, arrows:'to'},
-        {from: 2, to: 3, arrows:'to'},
-        {from: 3, to: 1, arrows:'to'},
-        {from: 3, to: 2, arrows:'to'},
-        {from: 4, to: 1, arrows:'to'},
-        {from: 1, to: 4, arrows:'to'},
-        {from: 5, to: 2, arrows:'to'},
-        {from: 2, to: 5, arrows:'to'},
-        {from: 6, to: 3, arrows:'to'},
-        {from: 3, to: 6, arrows:'to'}
-    ]);
+    {{template "edges" .BodyData}}
 
     // create a network
     var container = document.getElementById('mynetwork');

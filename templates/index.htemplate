@@ -6,8 +6,8 @@
     <li>rpc port: {{.Client.DefaultRPCPort}}</li>
     <li>default node: {{.Client.DefaultEthNode}}</li>
     <li>debug: {{if .Client.DebugMode}} on {{else}} off {{end}}</li>
-    <li>Network id: {{.NetModel.NetworkID}}</li>
-    <li>reachable nodes: {{len .Client.NetModel.ReachableNodes}}</li>
+    <li>Network id: {{.Client.NetModel.NetworkID}}</li>
+    <li>Known nodes: {{len .Client.NetModel.Nodes}}</li>
     <li></li>
 </ul>
 {{template "footer" .FooterData}}

@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"github.com/san-lab/toolsmith/client"
 	"github.com/san-lab/toolsmith/templates"
+	"log"
 	"net/http"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 const toggle = "togglerawmode"
@@ -50,7 +52,7 @@ func (lhh *LilHttpHandler) Handler(w http.ResponseWriter, r *http.Request) {
 	}
 	isSlash := func(c rune) bool { return c == '/' }
 	f := strings.FieldsFunc(r.URL.Path, isSlash)
-	fmt.Println(f)
+	log.Println(f)
 	switch len(f) {
 	case 1:
 		comm := f[0]
@@ -64,16 +66,20 @@ func (lhh *LilHttpHandler) Handler(w http.ResponseWriter, r *http.Request) {
 		eMethod := f[1]
 		lhh.RpcCallAndRespond(w, r, eNode, eMethod)
 	default:
-		rdata := templates.RenderData{TemplateName: "home", HeaderData: lhh.rpcClient.LocalInfo, Client: lhh.rpcClient}
-		lhh.r.RenderResponse(w, rdata)
+		cc := lhh.rpcClient.LocalInfo
+		rdata := templates.RenderData{TemplateName: "home", HeaderData: &cc, Client: lhh.rpcClient}
+		err := lhh.r.RenderResponse(w, rdata)
+		if err != nil {
+			log.Println(err)
+		}
 	}
 }
 
 //TODO
 func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request, comm string) {
 	var err error
-
-	rdata := templates.RenderData{HeaderData: lhh.rpcClient.LocalInfo, TemplateName: templates.Home, Client: lhh.rpcClient}
+	cc := lhh.rpcClient.LocalInfo
+	rdata := templates.RenderData{HeaderData: &cc, TemplateName: templates.Home, Client: lhh.rpcClient}
 	switch comm {
 	case discover:
 		err = lhh.rpcClient.DiscoverNetwork()
@@ -87,9 +93,10 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 		m, _ := lhh.rpcClient.Bloop()
 		rdata.TemplateName = templates.ListMap
 		rdata.BodyData = m
+		rdata.HeaderData.SetRefresh(5)
 	case heartbeat:
 		ok, nodes := lhh.rpcClient.HeartBeat()
-		fmt.Fprintf(w, "Network heartbeat: %v for %v nodes", ok, nodes)
+		fmt.Fprintf(w, "%s> Network heartbeat: %v for %v nodes", client.MyTime(time.Now()), ok, nodes)
 		return
 		//rdata.Error = fmt.Sprintf("Heartbeat: %s for the %v nodes reachable", ok, nodes) //A hack!
 	case debugOff:
@@ -98,6 +105,7 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 		lhh.rpcClient.DebugMode = true
 	case magic:
 		rdata.TemplateName = "magic"
+		rdata.BodyData = lhh.rpcClient.NetModel
 	case loadtemplates:
 		lhh.r.LoadTemplates()
 
@@ -107,9 +115,10 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 		err = errors.New(err_msg)
 	}
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 	lhh.r.RenderResponse(w, rdata)
+
 }
 
 // Ethereum RPC call to the eNode and rendering the appropriate HTML result page.
@@ -152,24 +161,28 @@ func (lhh *LilHttpHandler) RpcCallAndRespond(w http.ResponseWriter, r *http.Requ
 		fmt.Fprintln(w, err)
 		return
 	}
-	rdata := templates.RenderData{HeaderData:lhh.rpcClient.LocalInfo, BodyData:callData}
+	cc := lhh.rpcClient.LocalInfo //Cloning, i hope
+	rdata := templates.RenderData{HeaderData: &cc, BodyData: callData}
 	if showRaw {
-		rdata.TemplateName=templates.Raw
+		rdata.TemplateName = templates.Raw
 	} else {
 		switch eMethod {
 		case "eth_blockNumber":
-			rdata.TemplateName=templates.BlockNumber
+			rdata.TemplateName = templates.BlockNumber
 		case "admin_peers":
-			rdata.TemplateName= templates.Peers
+			rdata.TemplateName = templates.Peers
 		case "txpool_status":
-			rdata.TemplateName=templates.TxpoolStatus
+			rdata.TemplateName = templates.TxpoolStatus
+		case "admin_datadir", "net_version":
+			rdata.TemplateName = templates.BlockNumber
 		default:
-			rdata.TemplateName=templates.Raw
+			rdata.TemplateName = templates.Raw
 
 		}
 
 	}
-	lhh.r.RenderResponse(w,rdata)
+	lhh.r.RenderResponse(w, rdata)
+
 }
 
 type Config struct {
