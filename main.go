@@ -6,7 +6,7 @@ import (
 	"github.com/san-lab/toolsmith/httphandler"
 	"log"
 	"net/http"
-	"github.com/san-lab/toolsmith/client"
+	//"github.com/san-lab/toolsmith/client"
 )
 
 //Parsing flags "ethport" and "host"
@@ -21,7 +21,7 @@ func main() {
 
 	c.EthHost = *ethRPCAddress
 	c.HttpPort = *httpPort
-	client.LoadMocks()
+	//client.LoadMocks()
 	fmt.Println("Here")
 	handler, err := httphandler.NewHttpHandler(c)
 
