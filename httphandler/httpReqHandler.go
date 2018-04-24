@@ -37,7 +37,7 @@ func NewHttpHandler(c Config) (lhh *LilHttpHandler, err error) {
 	lhh = &LilHttpHandler{}
 	lhh.config = c
 	lhh.r = templates.NewRenderer()
-	lhh.rpcClient, err = client.NewClient(c.EthHost)
+	lhh.rpcClient, err = client.NewClient(c.EthHost, c.MockMode, c.DumpRPC)
 	return lhh, err
 }
 
@@ -188,4 +188,6 @@ func (lhh *LilHttpHandler) RpcCallAndRespond(w http.ResponseWriter, r *http.Requ
 type Config struct {
 	EthHost  string
 	HttpPort string
+	MockMode bool
+	DumpRPC bool
 }

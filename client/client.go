@@ -13,7 +13,7 @@ import (
 	"os"
 	"strings"
 	"time"
-)
+	)
 
 //A rest api client, wrapping an http client
 //The struct also contains a map of addresses of known nodes' end-points
@@ -21,7 +21,7 @@ import (
 type Client struct {
 	DefaultEthNode       string
 	UserAgent            string
-	httpClient           *http.Client
+	httpClient           HttpClient
 	seq                  uint
 	r                    *templates.Renderer
 	LocalInfo            CallContext
@@ -30,18 +30,32 @@ type Client struct {
 	DebugMode            bool
 	UnreachableAddresses map[string]MyTime
 	VisitedNodes	map[NodeID]MyTime
+	mockMode bool
+	dumpRPC bool
+}
+
+type HttpClient interface {
+	Do (r *http.Request) (*http.Response, error)
 }
 
 const defaultTimeout = 3 * time.Second
 
 //Creates a new rest api client
 //If something like ("www.node:8666",8545) is passed, an error is thrown
-func NewClient(ethHost string) (c *Client, err error) {
-	c = &Client{httpClient: http.DefaultClient}
+func NewClient(ethHost string, mock bool, dump bool) (c *Client, err error) {
+	c = &Client{}
+	c.mockMode = mock
+	c.dumpRPC = dump
+	if mock {
+		c.httpClient = NewMockClient()
+	} else {
+		c.httpClient = http.DefaultClient
+		c.httpClient.(*http.Client).Timeout=defaultTimeout
+	}
+
 	c.DefaultEthNode = ethHost
 	c.DefaultRPCPort = strings.Split(ethHost, ":")[1]
 	c.seq = 0
-	c.httpClient.Timeout = defaultTimeout
 	//TODO handle error
 	c.LocalInfo, _ = GetLocalInfo()
 	c.NetModel = *NewBlockchainNet()
@@ -51,7 +65,9 @@ func NewClient(ethHost string) (c *Client, err error) {
 
 //The name says it all
 func (rpcClient *Client) SetTimeout(timeout time.Duration) {
-	rpcClient.httpClient.Timeout = timeout
+	if ! rpcClient.mockMode {
+		rpcClient.httpClient.(*http.Client).Timeout = defaultTimeout
+	}
 }
 
 func (rpcClient *Client) DiscoverNetwork() error {
@@ -107,6 +123,7 @@ func (rpcClient *Client) actualRpcCall(data *CallData) error {
 		return err
 	}
 	defer resp.Body.Close()
+
 	//Todo: check Response status is 200!!!
 	if resp.StatusCode != 200 {
 		err = errors.New(resp.Status)
@@ -117,6 +134,13 @@ func (rpcClient *Client) actualRpcCall(data *CallData) error {
 		rpcClient.log(fmt.Sprintf("%s", err))
 		return err
 	}
+
+	if rpcClient.dumpRPC {
+		key , _, _ := net.SplitHostPort(req.URL.Host)
+		key = key + "_" + data.Command.Method
+		ioutil.WriteFile(key, respBytes, 0644 )
+	}
+
 	data.JsonRequest = string(jcom)
 	var buf bytes.Buffer
 	err = json.Indent(&buf, respBytes, "", " ")
@@ -129,6 +153,14 @@ func (rpcClient *Client) actualRpcCall(data *CallData) error {
 	if err != nil {
 		rpcClient.log(fmt.Sprint(err))
 	}
+
+	if rpcClient.dumpRPC {
+		key , _, _ := net.SplitHostPort(req.URL.Host)
+		key = key + "_" + data.Command.Method + ".json"
+		log.Println("dumping "+ key)
+		ioutil.WriteFile(key, respBytes, 0644 )
+	}
+
 	return err
 }
 

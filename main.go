@@ -6,8 +6,7 @@ import (
 	"github.com/san-lab/toolsmith/httphandler"
 	"log"
 	"net/http"
-	//"github.com/san-lab/toolsmith/client"
-)
+	)
 
 //Parsing flags "ethport" and "host"
 //Initializing EthRPC client
@@ -16,12 +15,15 @@ func main() {
 
 	ethRPCAddress := flag.String("ethRPCAddress", "localhost:8545", "default RPC access point")
 	httpPort := flag.String("httpPort", "8090", "http port")
+	mockMode := flag.Bool("mockMode", false, "should mock http RPC client")
+	dumpRPC := flag.Bool("dumpRPC", false, "should dump RPC responses to files")
 	flag.Parse()
 	c := httphandler.Config{}
 
 	c.EthHost = *ethRPCAddress
 	c.HttpPort = *httpPort
-	//client.LoadMocks()
+	c.MockMode = *mockMode
+	c.DumpRPC = *dumpRPC
 	fmt.Println("Here")
 	handler, err := httphandler.NewHttpHandler(c)
 
