@@ -137,7 +137,8 @@ func (rpcClient *Client) actualRpcCall(data *CallData) error {
 
 	if rpcClient.dumpRPC {
 		key , _, _ := net.SplitHostPort(req.URL.Host)
-		key = key + "_" + data.Command.Method
+		key = key + "_" + data.Command.Method + ".json"
+		log.Println("dumping "+ key)
 		ioutil.WriteFile(key, respBytes, 0644 )
 	}
 
@@ -152,13 +153,6 @@ func (rpcClient *Client) actualRpcCall(data *CallData) error {
 	err = Decode(respBytes, data)
 	if err != nil {
 		rpcClient.log(fmt.Sprint(err))
-	}
-
-	if rpcClient.dumpRPC {
-		key , _, _ := net.SplitHostPort(req.URL.Host)
-		key = key + "_" + data.Command.Method + ".json"
-		log.Println("dumping "+ key)
-		ioutil.WriteFile(key, respBytes, 0644 )
 	}
 
 	return err
