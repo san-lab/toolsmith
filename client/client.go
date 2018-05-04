@@ -13,7 +13,7 @@ import (
 	"os"
 	"strings"
 	"time"
-	)
+)
 
 //A rest api client, wrapping an http client
 //The struct also contains a map of addresses of known nodes' end-points
@@ -29,13 +29,13 @@ type Client struct {
 	DefaultRPCPort       string
 	DebugMode            bool
 	UnreachableAddresses map[string]MyTime
-	VisitedNodes	map[NodeID]MyTime
-	mockMode bool
-	dumpRPC bool
+	VisitedNodes         map[NodeID]MyTime
+	mockMode             bool
+	dumpRPC              bool
 }
 
 type HttpClient interface {
-	Do (r *http.Request) (*http.Response, error)
+	Do(r *http.Request) (*http.Response, error)
 }
 
 const defaultTimeout = 3 * time.Second
@@ -50,7 +50,7 @@ func NewClient(ethHost string, mock bool, dump bool) (c *Client, err error) {
 		c.httpClient = NewMockClient()
 	} else {
 		c.httpClient = http.DefaultClient
-		c.httpClient.(*http.Client).Timeout=defaultTimeout
+		c.httpClient.(*http.Client).Timeout = defaultTimeout
 	}
 
 	c.DefaultEthNode = ethHost
@@ -65,13 +65,9 @@ func NewClient(ethHost string, mock bool, dump bool) (c *Client, err error) {
 
 //The name says it all
 func (rpcClient *Client) SetTimeout(timeout time.Duration) {
-	if ! rpcClient.mockMode {
+	if !rpcClient.mockMode {
 		rpcClient.httpClient.(*http.Client).Timeout = defaultTimeout
 	}
-}
-
-func (rpcClient *Client) DiscoverNetwork() error {
-	return nil
 }
 
 
@@ -136,10 +132,10 @@ func (rpcClient *Client) actualRpcCall(data *CallData) error {
 	}
 
 	if rpcClient.dumpRPC {
-		key , _, _ := net.SplitHostPort(req.URL.Host)
+		key, _, _ := net.SplitHostPort(req.URL.Host)
 		key = key + "_" + data.Command.Method + ".json"
-		log.Println("dumping "+ key)
-		ioutil.WriteFile(key, respBytes, 0644 )
+		log.Println("dumping " + key)
+		ioutil.WriteFile(key, respBytes, 0644)
 	}
 
 	data.JsonRequest = string(jcom)
@@ -158,8 +154,6 @@ func (rpcClient *Client) actualRpcCall(data *CallData) error {
 	return err
 }
 
-
-
 //The name says it.
 // "method" name is needed for constructing the RPC field
 //     - which is complete and only the "ID" integer is meant to be changed
@@ -174,17 +168,17 @@ func (rpcClient *Client) NewCallData(method string) *CallData {
 func GetLocalInfo() (CallContext, error) {
 	hostname, err := os.Hostname()
 	conn, err := net.Dial("udp", "8.8.8.8:80")
+	var ipaddress string
 	if err != nil {
-
+		ipaddress = ""
+		log.Println("No network")
+	} else {
+		defer conn.Close()
+		localAddr := conn.LocalAddr().(*net.UDPAddr)
+		ipaddress = localAddr.IP.String()
 	}
-	defer conn.Close()
-
-	localAddr := conn.LocalAddr().(*net.UDPAddr)
-	ipaddress := localAddr.IP.String()
 	return CallContext{ClientHostName: hostname, ClientIp: ipaddress}, err
 }
-
-
 
 func (rpcClient *Client) log(s string) {
 	if rpcClient.DebugMode {
@@ -204,7 +198,6 @@ func CamelCaseKnownCommand(command *string) bool {
 	}
 	return false
 }
-
 
 var KnownEthCommands = []string{"admin_addPeer", "debug_backtraceAt", "miner_setExtra", "personal_ecRecover", "txpool_content",
 	"admin_datadir", "debug_blockProfile", "miner_setGasPrice", "personal_importRawKey", "txpool_inspect",

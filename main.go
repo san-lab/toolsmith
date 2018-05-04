@@ -6,7 +6,7 @@ import (
 	"github.com/san-lab/toolsmith/httphandler"
 	"log"
 	"net/http"
-	)
+)
 
 //Parsing flags "ethport" and "host"
 //Initializing EthRPC client

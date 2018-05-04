@@ -52,7 +52,7 @@ func (lhh *LilHttpHandler) Handler(w http.ResponseWriter, r *http.Request) {
 	}
 	isSlash := func(c rune) bool { return c == '/' }
 	f := strings.FieldsFunc(r.URL.Path, isSlash)
-	log.Println(f)
+	//log.Println(f)
 	switch len(f) {
 	case 1:
 		comm := f[0]
@@ -105,7 +105,8 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 		lhh.rpcClient.DebugMode = true
 	case magic:
 		rdata.TemplateName = "magic"
-		rdata.BodyData = lhh.rpcClient.NetModel
+		lhh.rpcClient.Rescan()
+		rdata.BodyData = &lhh.rpcClient.NetModel
 	case loadtemplates:
 		lhh.r.LoadTemplates()
 
@@ -189,5 +190,5 @@ type Config struct {
 	EthHost  string
 	HttpPort string
 	MockMode bool
-	DumpRPC bool
+	DumpRPC  bool
 }

@@ -7,11 +7,21 @@
     <title>Blockchain Network Watchcat</title>
 </head>
 <body>
-    </div><img src="/static/blockchain_64x64.png" align="left"/>
-    <div> <table border="0"><tr><td colspan = 5><H2>Ethereum Private Network Monitoring Tool</H2></td></tr>
-   <tr><td>{{.ClientHostName}}</td><td></td><td></td><td>{{with .}} {{template "toggleRawMode" .}} {{end}}<td/>
-       <td>{{template "refresh"}}<td/></tr>
-</table></div>
+          <table border="0">
+            <tr>
+                <td rowspan="2"><img src="/static/blockchain_64x64.png" align="left"/></td>
+                <td colspan = 5><b>Ethereum Private Network Monitoring Tool</b>
+                </td>
+            </tr>
+            <tr>
+                <td>{{.ClientHostName}}</td>
+                <td>{{with .}} {{template "toggleRawMode" .}} {{end}}<td/>
+                <td>{{template "refresh"}}<td/>
+                <td>{{template "rebuildNet"}}</td>
+                <td>{{template "netStatus"}}</td>
+            </tr>
+        </table>
+
 
     <hr/>
 {{end}}
@@ -38,4 +48,15 @@
 <form action="{{.RequestPath}}" type="POST">
 <button type="submit" >refresh</button>
         </form>
+        {{end}}
+{{define "rebuildNet"}}
+<form action="/discovernetwork" type="POST">
+<button type="submit" >rebuild</button>
+</form>
+{{end}}
+
+        {{define "netStatus"}}
+<form action="/magicone" type="POST">
+<button type="submit" >dashboard</button>
+</form>
         {{end}}

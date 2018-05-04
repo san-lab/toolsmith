@@ -9,7 +9,20 @@ import (
 
 
 
+
+
 func (rpcClient *Client) Rescan() error {
+	for _, node := range rpcClient.NetModel.Nodes {
+		err:=rpcClient.collectNodeInfo(node)
+		if err!= nil {
+			log.Println(err)
+
+		}
+	}
+	return nil
+}
+
+func (rpcClient *Client) DiscoverNetwork() error {
 	rpcClient.UnreachableAddresses = map[string]MyTime{}
 	rpcClient.SetNetworkId()
 	data := rpcClient.NewCallData("admin_nodeInfo")
@@ -23,14 +36,15 @@ func (rpcClient *Client) Rescan() error {
 		log.Printf("expected %T got %T", ni, data.ParsedResult)
 		return errors.New("Not ok parsing the root node info")
 	}
+	rpcClient.NetModel.Nodes = map[NodeID]*Node{}
 	rootnode := NodeFromNodeInfo(ni)
 	rootnode.KnownAddresses[rpcClient.DefaultEthNode] = true
 	rpcClient.NetModel.Nodes[rootnode.ID] = rootnode
-	rpcClient.VisitedNodes =  map[NodeID]MyTime{}  //Boy this is ugly!
+	rpcClient.NetModel.AccessNode = rootnode
+	rpcClient.VisitedNodes = map[NodeID]MyTime{} //Boy this is ugly!
 	rpcClient.collectNodeInfoRecursively(rootnode)
 	return nil
 }
-
 
 func (rpcClient *Client) HeartBeat() (ok bool, nodes int) {
 	if len(rpcClient.NetModel.Nodes) == 0 {
@@ -117,24 +131,28 @@ func (rpcClient *Client) SetNetworkId() error {
 	return nil
 }
 
+
 //Update a  node Info, includig peers, txpool and block number
 func (rpcClient *Client) collectNodeInfo(node *Node) (err error) {
-	log.Println("Collecting node info on " + node.ShortName())
+	//log.Println("Collecting node info on " + node.ShortName() +"/" + node.IDHead(6))
 	if len(node.ID) == 0 {
-		return errors.New("Cannot get info of a blank node")
+		return errors.New("cannot get info of a blank node")
 	}
-	rpcClient.NetModel.Nodes[node.ID] = node
+	rpcClient.NetModel.FindOrAddNode( node)
+	rpcClient.NetModel.isOk()
 	callData := rpcClient.NewCallData("admin_peers")
 	var prefaddr string
 	err = errors.New(fmt.Sprintf("No known/working address for %s", node.ShortName()))
 	for address := range node.KnownAddresses { //Dial on all numbers
 		if _, ok := rpcClient.UnreachableAddresses[address]; ok {
+			log.Println("Hit an unrachable address: " + address)
 			continue
 		}
 		callData.Context.TargetNode = address
 		err = rpcClient.actualRpcCall(callData)
 		if err == nil {
 			prefaddr = address
+			node.SetReachable(true)
 			break
 		}
 		rpcClient.UnreachableAddresses[address] = MyTime(time.Now())
@@ -144,22 +162,22 @@ func (rpcClient *Client) collectNodeInfo(node *Node) (err error) {
 		node.Reachable = false
 		return err
 	}
-	node.Reachable = true
 	var ok bool
 	node.JSONPeers, ok = callData.ParsedResult.(*PeerArray)
 	if !ok {
 		return errors.New("Could not parse the result of JSONPeers of " + prefaddr)
 	}
-
+	node.Peers = map[string]*Node{}
 	for _, pi := range *node.JSONPeers {
-		pn := rpcClient.NetModel.Nodes[NodeID(pi.ID)]
-		if pn == nil {
+		pn, exists := rpcClient.NetModel.Nodes[NodeID(pi.ID)]
+		if !exists {
 			pn = NodeFromPeerInfo(&pi)
-			rpcClient.NetModel.Nodes[NodeID(pi.ID)] = pn
+			rpcClient.NetModel.FindOrAddNode(pn)
+
 		}
 		pn.KnownAddresses[pi.RemoteHostMachine()] = true
-		log.Printf("Adding %s as a peer of %s\n", pn.ShortName(), node.ShortName())
-		node.Peers[pi.RemoteHostMachine()] = *pn
+		//log.Printf("Adding %s as a peer of %s\n", pn.ShortName(), node.ShortName())
+		node.Peers[pi.RemoteHostMachine()] = pn
 	}
 	//Get the txpool status
 	callData.Command.Method = "txpool_status"
@@ -192,12 +210,9 @@ func (rpcClient *Client) collectNodeInfoRecursively(parent *Node) error {
 	rpcClient.VisitedNodes[parent.ID] = MyTime(time.Now())
 
 	for _, peernode := range parent.Peers {
-		if _, beenThere :=rpcClient.VisitedNodes[peernode.ID]; !beenThere {
-			rpcClient.collectNodeInfoRecursively(&peernode) //ignoring the connection error - the unreachables set already
+		if _, beenThere := rpcClient.VisitedNodes[peernode.ID]; !beenThere {
+			rpcClient.collectNodeInfoRecursively(peernode) //ignoring the connection error - the unreachables set already
 		}
 	}
 	return nil
 }
-
-
-

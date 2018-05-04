@@ -3,16 +3,35 @@ package client
 import (
 	"strings"
 	"time"
+	"log"
 )
 
 //A structure to keep the model of the blockchain network
 type BlockchainNet struct {
 	DefaultAccessIP   string
 	DefaultEthrpcPort string
-	AccessNode        Node
+	AccessNode        *Node
 	NetworkID         string
 	Nodes             map[NodeID]*Node //The NodeID is meant to be the key here
 
+}
+
+func (bcn *BlockchainNet) FindOrAddNode(nn *Node) bool {
+	//defer bcn.listReaches()
+	on, has := bcn.Nodes[nn.ID]
+	if has {
+		*nn = *on
+		return true
+	} else {
+		bcn.Nodes[nn.ID] = nn
+		return  false
+	}
+}
+
+func (bcn *BlockchainNet) listReaches() {
+	for _,v := range bcn.Nodes {
+		log.Printf("%s is reachable: %v\n", v.ShortName(),v.Reachable)
+	}
 }
 
 func NewBlockchainNet() *BlockchainNet {
@@ -44,16 +63,16 @@ type Node struct {
 	ThisNodeInfo          NodeInfo // should not be needed
 	Name                  string
 	KnownAddresses        map[string]bool
-	JSONPeers             *PeerArray // Shouuld not be needed
+	JSONPeers             *PeerArray // Should not be needed
 	LastBlockNumberSample *BlockNumberSample
 	TxpoolStatus          *TxpoolStatusSample
-	Peers                 map[string]Node // ipaddress -> node
+	Peers                 map[string]*Node // ipaddress -> node
 	LastPing              MyTime
 	Reachable             bool
 }
 
-func (nm BlockchainNet) ResolveAddress(addr string) (*Node, bool) {
-	for _, n := range nm.Nodes {
+func (bcn BlockchainNet) ResolveAddress(addr string) (*Node, bool) {
+	for _, n := range bcn.Nodes {
 		if n.KnownAddresses[addr] {
 			return n, true
 		}
@@ -61,9 +80,18 @@ func (nm BlockchainNet) ResolveAddress(addr string) (*Node, bool) {
 	return nil, false
 }
 
+func (n *Node) PeerSeenAs(peer *Node) (string, bool)  {
+	for a, p := range n.Peers {
+		if p.ID == peer.ID {
+			return a , true
+		}
+	}
+	return "invisible", false
+}
+
 //Extract the short name from the NodeAddress name
 // assuming the name is of the form: "Geth/miner3/v1.7.2-stable/linux-amd64/go1.9.2"
-func (n *Node) ShortName() string {
+func (n Node) ShortName() string {
 	parts := strings.Split(n.Name, "/")
 	if len(parts) > 1 {
 		return parts[1]
@@ -73,7 +101,7 @@ func (n *Node) ShortName() string {
 
 //This is a stub. The address does not include the rpc port
 //TODO: actual smarts for selecting the preferred address
-func (n *Node) PrefAddress() string {
+func (n Node) PrefAddress() string {
 	for a, ok := range n.KnownAddresses {
 		if ok {
 			return a
@@ -82,18 +110,24 @@ func (n *Node) PrefAddress() string {
 	return ""
 }
 
-func (n *Node) IDHead(i int) string {
+func (n Node) IDHead(i int) string {
 	return string(n.ID)[:i]
 }
 
-func (n *Node) IDTail(i int) string {
+func (n Node) IDTail(i int) string {
 	return string(n.ID)[len(n.ID)-i:]
+}
+
+func (n *Node) SetReachable(is bool) {
+	log.Printf("Setting %s as reachable=%v\n", n.ShortName(), is)
+	n.Reachable = is
+	n.LastPing = MyTime(time.Now())
 }
 
 func NewNode() *Node {
 	n := &Node{}
 	n.KnownAddresses = map[string]bool{}
-	n.Peers = map[string]Node{}
+	n.Peers = map[string]*Node{}
 	return n
 }
 
@@ -102,8 +136,7 @@ func NodeFromNodeInfo(ni *NodeInfo) *Node {
 	n.ID = NodeID(ni.ID)
 	n.ThisNodeInfo = *ni
 	n.Name = ni.Name
-	n.Reachable = true //This is based on the assumption that the node info has been just obtained
-	n.LastPing = MyTime(time.Now())
+	n.SetReachable( true) //This is based on the assumption that the node info has been just obtained
 	return n
 }
 
@@ -113,4 +146,15 @@ func NodeFromPeerInfo(pi *PeerInfo) *Node {
 	n.Name = pi.Name
 	n.KnownAddresses = map[string]bool{}
 	return n
+}
+
+func (bcn *BlockchainNet) isOk() bool {
+	for k, v := range bcn.Nodes {
+		if(k != v.ID) {
+			log.Fatal("false key %s for node %s\n", k, v.ID)
+			return false
+		}
+	}
+	log.Println("Model OK")
+	return true
 }
