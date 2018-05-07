@@ -75,7 +75,10 @@ func (lhh *LilHttpHandler) Handler(w http.ResponseWriter, r *http.Request) {
 		lhh.RpcCallAndRespond(w, r, eNode, eMethod)
 	default:
 		cc := lhh.rpcClient.LocalInfo
-		rdata := templates.RenderData{TemplateName: "home", HeaderData: &cc, Client: lhh.rpcClient}
+		if lhh.rpcClient.NetModel.NetworkID == "" {
+			lhh.rpcClient.DiscoverNetwork()
+		}
+		rdata := templates.RenderData{TemplateName: "magic", HeaderData: &cc, Client: lhh.rpcClient}
 		err := lhh.r.RenderResponse(w, rdata)
 		if err != nil {
 			log.Println(err)

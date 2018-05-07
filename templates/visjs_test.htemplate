@@ -44,7 +44,7 @@ var refIntervalId = setInterval(loadNodeList, 3000); // milliseconds
     {{template "nodes" .Client.NetModel}}
 
     // create an array with edges
-    {{template "edges" .BodyData}}
+    {{template "edges" .Client.NetModel}}
 
     // create a network
     var container = document.getElementById('mynetwork');
