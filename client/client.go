@@ -203,10 +203,37 @@ func CamelCaseKnownCommand(command *string) bool {
 	return false
 }
 
+//Add all possible peers
+func (rpcClient *Client) FullMesh() error {
+	for k1, n1 := range rpcClient.NetModel.Nodes {
+		for k2, n2 := range rpcClient.NetModel.Nodes {
+			if k1==k2 {continue}
+			_, hasalready := n1.PeerSeenAs(n2)
+			if hasalready {continue}
+			for addr := range n2.KnownAddresses {
+				enode := "enode://"+string(n2.ID)+"@" + addr + ":30304"
+				callData := rpcClient.NewCallData("admin_addPeer")
+				callData.Context.TargetNode = n1.PrefAddress()
+				callData.Command.Params = []interface{}{enode}
+				err := rpcClient.actualRpcCall(callData)
+				if err != nil {
+					log.Println(err)
+				} else {
+					break;
+				}
+			}
+
+		}
+	}
+	return nil
+}
+
+//Artificially block calls to certain address
 func (rpcClient *Client) BlockAddress(addr string) {
 	rpcClient.blockedAddresses[addr] = true
 }
 
+//Remove artificial block on an address
 func (rpcClient *Client) UnblockAddress(addr string) {
 	delete(rpcClient.blockedAddresses, addr)
 }

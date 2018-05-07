@@ -27,6 +27,7 @@ const nodesJSON = "jsonnodes"
 const mockblock = "mockblock"
 const mockunblock = "mockunblock"
 const rawnodes = "rawnodes"
+const fullmesh = "fullmesh"
 
 //This is the glue between the http requests and the (hopefully) generic RPC client
 
@@ -119,6 +120,10 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 	case rawnodes:
 		rdata.TemplateName = "nodelist"
 		lhh.rpcClient.Rescan()
+	case fullmesh:
+		lhh.rpcClient.FullMesh()
+		lhh.rpcClient.Rescan()
+		rdata.TemplateName="magic"
 	case mockblock:
 		lhh.rpcClient.BlockAddress(r.Form["addr"][0])
 	case mockunblock:
