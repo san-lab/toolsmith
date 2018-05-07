@@ -30,8 +30,9 @@ type Client struct {
 	DebugMode            bool
 	UnreachableAddresses map[string]MyTime
 	VisitedNodes         map[NodeID]MyTime
-	mockMode             bool
+	MockMode             bool
 	dumpRPC              bool
+	blockedAddresses     map[string]bool
 }
 
 type HttpClient interface {
@@ -44,7 +45,7 @@ const defaultTimeout = 3 * time.Second
 //If something like ("www.node:8666",8545) is passed, an error is thrown
 func NewClient(ethHost string, mock bool, dump bool) (c *Client, err error) {
 	c = &Client{}
-	c.mockMode = mock
+	c.MockMode = mock
 	c.dumpRPC = dump
 	if mock {
 		c.httpClient = NewMockClient()
@@ -60,16 +61,16 @@ func NewClient(ethHost string, mock bool, dump bool) (c *Client, err error) {
 	c.LocalInfo, _ = GetLocalInfo()
 	c.NetModel = *NewBlockchainNet()
 	c.UnreachableAddresses = map[string]MyTime{}
+	c.blockedAddresses = map[string]bool{}
 	return
 }
 
 //The name says it all
 func (rpcClient *Client) SetTimeout(timeout time.Duration) {
-	if !rpcClient.mockMode {
+	if !rpcClient.MockMode {
 		rpcClient.httpClient.(*http.Client).Timeout = defaultTimeout
 	}
 }
-
 
 //This is the exposed internal API - one method, so the things like mutex, etc. are possible
 //It is possible to pass simple commands or a CallData pointer, through which any results
@@ -94,6 +95,9 @@ func (rpcClient *Client) nextID() (id uint) {
 //Generic call to the ethereum api's. Uses structures corresponding to the api json specs
 //The response gets enclosed in the CallData argument
 func (rpcClient *Client) actualRpcCall(data *CallData) error {
+	if rpcClient.blockedAddresses[data.Context.TargetNode] {
+		return errors.New("Blocked address:" + data.Context.TargetNode)
+	}
 	data.Command.Id = rpcClient.nextID()
 	jcom, _ := json.Marshal(data.Command)
 	//TODO: allow to define and memorize node-specific ports
@@ -120,7 +124,6 @@ func (rpcClient *Client) actualRpcCall(data *CallData) error {
 	}
 	defer resp.Body.Close()
 
-	//Todo: check Response status is 200!!!
 	if resp.StatusCode != 200 {
 		err = errors.New(resp.Status)
 		return err
@@ -145,6 +148,7 @@ func (rpcClient *Client) actualRpcCall(data *CallData) error {
 		rpcClient.log(fmt.Sprint(err))
 	} //irrelevant error not worth returning
 	data.JsonResponse = buf.String()
+	rpcClient.log("Returned:\n" + fmt.Sprintf("%s", resp.Header))
 	rpcClient.log("Returned:\n" + data.JsonResponse)
 	err = Decode(respBytes, data)
 	if err != nil {
@@ -197,6 +201,14 @@ func CamelCaseKnownCommand(command *string) bool {
 		}
 	}
 	return false
+}
+
+func (rpcClient *Client) BlockAddress(addr string) {
+	rpcClient.blockedAddresses[addr] = true
+}
+
+func (rpcClient *Client) UnblockAddress(addr string) {
+	delete(rpcClient.blockedAddresses, addr)
 }
 
 var KnownEthCommands = []string{"admin_addPeer", "debug_backtraceAt", "miner_setExtra", "personal_ecRecover", "txpool_content",

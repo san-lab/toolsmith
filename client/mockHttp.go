@@ -20,7 +20,7 @@ func NewMockClient() *MockClient {
 	return m
 }
 
-func (m *MockClient) LoadMocks() error {
+func (mc *MockClient) LoadMocks() error {
 
 	//Try to scan the mockjson subdirectory
 	files, err := ioutil.ReadDir("./client/mockjson")
@@ -36,7 +36,7 @@ func (m *MockClient) LoadMocks() error {
 		}
 		log.Println(name)
 		buff, _ := ioutil.ReadFile("./client/mockjson/" + name)
-		m.knownResponses[strings.TrimSuffix(name, ".json")] = buff
+		mc.knownResponses[strings.TrimSuffix(name, ".json")] = buff
 
 	}
 
@@ -46,7 +46,7 @@ func (m *MockClient) LoadMocks() error {
 	return nil
 }
 
-func (m *MockClient) Do(req *http.Request) (*http.Response, error) {
+func (mc *MockClient) Do(req *http.Request) (*http.Response, error) {
 	res := &http.Response{}
 	key, _, err := net.SplitHostPort(req.URL.Host)
 	if err != nil {
@@ -54,6 +54,10 @@ func (m *MockClient) Do(req *http.Request) (*http.Response, error) {
 	}
 	//log.Println(key)
 	defer req.Body.Close()
+
+	var buf []byte
+	var ok bool
+
 	rbytes, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		log.Println(err)
@@ -65,7 +69,7 @@ func (m *MockClient) Do(req *http.Request) (*http.Response, error) {
 	}
 	key = key + "_" + ec.Method
 	//log.Println(key)
-	buf, ok := m.knownResponses[key]
+	buf, ok = mc.knownResponses[key]
 
 	if ok {
 		res.Body = myBody{bytes.NewReader(buf)}

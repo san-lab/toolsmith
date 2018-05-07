@@ -1,16 +1,25 @@
-{{define "network" }}{{/* expecting NodeModel as the pipe */}}
+{{define "network" }}{{/* expecting NodeModel as the .BodyData */}}
 {{template "header" .HeaderData}}
-Reachable nodes: </br>
-    {{range .BodyData.Nodes}}
-        name: {{.ShortName}} id: {{.IDHead 10}}...{{.IDTail 10}} </br>
-        Reachable: {{ .Reachable}}, {{with .LastBlockNumberSample}} BlockNumber: {{.BlockNumber}} reported at {{.Sampled}}{{end}}</br>
-        Peer count: <a href="/{{.PrefAddress}}/admin_peers"> {{len .Peers}}</a>, Known addresses: {{len .KnownAddresses}} <a  href="/{{.PrefAddress }}/txpool_inspect"> txpool: {{.TxpoolStatus}}</a>
-        </br>
-    {{end}}
+Nodes: </br>
+        {{template "nodelist" .}}
 </p>
 Unreachable addresses: </br>
     {{range $host, $time := .Client.UnreachableAddresses}}
         {{$host}} on {{$time}} </br>
     {{end}}
 {{template "footer"}}
+{{end}}
+
+{{define "nodelist"}}
+<ul>
+    {{range .Client.NetModel.Nodes}}
+       <li> <b>Node: </b> {{.ShortName}}, id: {{.IDHead 7}}...{{.IDTail 7}} , Reachable: {{ .Reachable}},</br>
+        {{with .LastBlockNumberSample}} BlockNumber: {{.BlockNumber}} reported at {{.Sampled}}, {{end}}
+        {{if .Reachable}}
+            Peer count: <a href="/{{.PrefAddress}}/admin_peers"> {{len .Peers}}</a> </br>
+            Known addresses: {{len .KnownAddresses}} <a  href="/{{.PrefAddress }}/txpool_inspect"> txpool: {{.TxpoolStatus}}</a>
+        {{end}}</br>
+        </li>
+     {{end}}
+</ul>
 {{end}}

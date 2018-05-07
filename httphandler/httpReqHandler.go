@@ -1,6 +1,7 @@
 package httphandler
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/san-lab/toolsmith/client"
@@ -22,6 +23,10 @@ const debugOn = "debugon"
 const debugOff = "debugoff"
 const loadtemplates = "loadtemplates"
 const magic = "magicone"
+const nodesJSON = "jsonnodes"
+const mockblock = "mockblock"
+const mockunblock = "mockunblock"
+const rawnodes = "rawnodes"
 
 //This is the glue between the http requests and the (hopefully) generic RPC client
 
@@ -58,6 +63,8 @@ func (lhh *LilHttpHandler) Handler(w http.ResponseWriter, r *http.Request) {
 		comm := f[0]
 		if client.CamelCaseKnownCommand(&comm) {
 			lhh.RpcCallAndRespond(w, r, lhh.config.EthHost, comm)
+		} else if strings.HasPrefix(comm, "json") {
+			lhh.handleJSON(w, r, comm)
 		} else {
 			lhh.SpecialCommand(w, r, comm)
 		}
@@ -109,7 +116,13 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 		rdata.BodyData = &lhh.rpcClient.NetModel
 	case loadtemplates:
 		lhh.r.LoadTemplates()
-
+	case rawnodes:
+		rdata.TemplateName = "nodelist"
+		lhh.rpcClient.Rescan()
+	case mockblock:
+		lhh.rpcClient.BlockAddress(r.Form["addr"][0])
+	case mockunblock:
+		lhh.rpcClient.UnblockAddress(r.Form["addr"][0])
 	default:
 		err_msg := fmt.Sprintf("Unknown command: %s", comm)
 		rdata.Error = err_msg
@@ -119,6 +132,14 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 		log.Println(err)
 	}
 	lhh.r.RenderResponse(w, rdata)
+
+}
+
+func (lhh *LilHttpHandler) handleJSON(writer http.ResponseWriter, rq *http.Request, comm string) {
+	writer.Header().Set("Content-Type", "application/json")
+	writer.WriteHeader(200)
+	nodes := lhh.rpcClient.NetModel.GetJsonNodes()
+	json.NewEncoder(writer).Encode(nodes)
 
 }
 

@@ -10,15 +10,16 @@
           <table border="0">
             <tr>
                 <td rowspan="2"><img src="/static/blockchain_64x64.png" align="left"/></td>
-                <td colspan = 5><b>Ethereum Private Network Monitoring Tool</b>
+                <td colspan = 15><b>Ethereum Private Network Monitoring Tool</b>
                 </td>
             </tr>
             <tr>
                 <td>{{.ClientHostName}}</td>
-                <td>{{with .}} {{template "toggleRawMode" .}} {{end}}<td/>
-                <td>{{template "refresh"}}<td/>
-                <td>{{template "rebuildNet"}}</td>
-                <td>{{template "netStatus"}}</td>
+                <td >{{with .}} {{template "toggleRawMode" .}} {{end}}<td/>
+                <td >{{template "refresh"}}<td/>
+                <td >{{template "rebuildNet"}}</td>
+                <td >{{template "netStatus"}}</td>
+                <td >{{template "rtemplates"}}</td>
             </tr>
         </table>
 
@@ -55,8 +56,14 @@
 </form>
 {{end}}
 
-        {{define "netStatus"}}
-<form action="/magicone" type="POST">
-<button type="submit" >dashboard</button>
-</form>
-        {{end}}
+{{define "netStatus"}}
+  <form action="/magicone" type="POST">
+  <button type="submit" >dashboard</button>
+  </form>
+{{end}}
+
+{{define "rtemplates"}}
+    <form action="/loadtemplates" type="POST">
+    <button type="submit" >templates</button>
+    </form>
+{{end}}

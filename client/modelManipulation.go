@@ -7,14 +7,10 @@ import (
 	"time"
 )
 
-
-
-
-
 func (rpcClient *Client) Rescan() error {
 	for _, node := range rpcClient.NetModel.Nodes {
-		err:=rpcClient.collectNodeInfo(node)
-		if err!= nil {
+		err := rpcClient.collectNodeInfo(node)
+		if err != nil {
 			log.Println(err)
 
 		}
@@ -36,7 +32,7 @@ func (rpcClient *Client) DiscoverNetwork() error {
 		log.Printf("expected %T got %T", ni, data.ParsedResult)
 		return errors.New("Not ok parsing the root node info")
 	}
-	rpcClient.NetModel.Nodes = map[NodeID]*Node{}
+	//rpcClient.NetModel.Nodes = map[NodeID]*Node{}
 	rootnode := NodeFromNodeInfo(ni)
 	rootnode.KnownAddresses[rpcClient.DefaultEthNode] = true
 	rpcClient.NetModel.Nodes[rootnode.ID] = rootnode
@@ -131,15 +127,13 @@ func (rpcClient *Client) SetNetworkId() error {
 	return nil
 }
 
-
 //Update a  node Info, includig peers, txpool and block number
 func (rpcClient *Client) collectNodeInfo(node *Node) (err error) {
 	//log.Println("Collecting node info on " + node.ShortName() +"/" + node.IDHead(6))
 	if len(node.ID) == 0 {
 		return errors.New("cannot get info of a blank node")
 	}
-	rpcClient.NetModel.FindOrAddNode( node)
-	rpcClient.NetModel.isOk()
+	rpcClient.NetModel.FindOrAddNode(node)
 	callData := rpcClient.NewCallData("admin_peers")
 	var prefaddr string
 	err = errors.New(fmt.Sprintf("No known/working address for %s", node.ShortName()))

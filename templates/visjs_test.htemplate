@@ -34,18 +34,12 @@
 
 <div id="mynetwork" style="height: 400px; width: 600px; float: left" ></div>
 <div id="textpane" style="height: 400px; width: 600px; float: left; padding-top: 20px; padding-left: 30px;" >
-    <ul>
-    {{range .Client.NetModel.Nodes}}
-<b>Node: </b> {{.ShortName}}, id: {{.IDHead 7}}...{{.IDTail 7}} , Reachable: {{ .Reachable}},</br>
- {{with .LastBlockNumberSample}} BlockNumber: {{.BlockNumber}} reported at {{.Sampled}}{{end}},
-Peer count: <a href="/{{.PrefAddress}}/admin_peers"> {{len .Peers}}</a>
-</br>
-        Known addresses: {{len .KnownAddresses}} <a  href="/{{.PrefAddress }}/txpool_inspect"> txpool: {{.TxpoolStatus}}</a>
-        </br>
-        {{end}}
-</ul>
+    {{template "nodelist" .}}
 </div>
 <script type="text/javascript">
+
+var refIntervalId = setInterval(loadNodeList, 3000); // milliseconds
+
     // create an array with nodes
     {{template "nodes" .Client.NetModel}}
 
@@ -101,7 +95,29 @@ Peer count: <a href="/{{.PrefAddress}}/admin_peers"> {{len .Peers}}</a>
     }
     );
 
-
+    function loadNodeList() {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function() {
+            if (this.readyState == 4 && this.status == 200) {
+                document.getElementById("textpane").innerHTML =
+                    this.responseText;
+            }
+        };
+        xhttp.open("GET", "rawnodes", true);
+        xhttp.send();
+    }
+    function loadNodes() {
+        var xhttp = new XMLHttpRequest();
+        xhttp.responseType = 'json';
+        xhttp.onreadystatechange = function() {
+            if (this.readyState == 4 && this.status == 200) {
+                document.getElementById("stat").innerHTML =
+                    JSON.stringify(this.response);
+            }
+        };
+        xhttp.open("GET", "jsonnodes", true);
+        xhttp.send();
+    }
 
 
 </script>
@@ -109,8 +125,9 @@ Peer count: <a href="/{{.PrefAddress}}/admin_peers"> {{len .Peers}}</a>
 <div id="stat" ></div>
 
 <button type="button" onclick="circle(nodes)">Cirlce graph</button>
-
 </body>
 </html>
+
+
 {{template "footer"}}
 {{end}}

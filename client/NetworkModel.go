@@ -1,9 +1,9 @@
 package client
 
 import (
+	"log"
 	"strings"
 	"time"
-	"log"
 )
 
 //A structure to keep the model of the blockchain network
@@ -24,13 +24,13 @@ func (bcn *BlockchainNet) FindOrAddNode(nn *Node) bool {
 		return true
 	} else {
 		bcn.Nodes[nn.ID] = nn
-		return  false
+		return false
 	}
 }
 
 func (bcn *BlockchainNet) listReaches() {
-	for _,v := range bcn.Nodes {
-		log.Printf("%s is reachable: %v\n", v.ShortName(),v.Reachable)
+	for _, v := range bcn.Nodes {
+		log.Printf("%s is reachable: %v\n", v.ShortName(), v.Reachable)
 	}
 }
 
@@ -80,10 +80,10 @@ func (bcn BlockchainNet) ResolveAddress(addr string) (*Node, bool) {
 	return nil, false
 }
 
-func (n *Node) PeerSeenAs(peer *Node) (string, bool)  {
+func (n *Node) PeerSeenAs(peer *Node) (string, bool) {
 	for a, p := range n.Peers {
 		if p.ID == peer.ID {
-			return a , true
+			return a, true
 		}
 	}
 	return "invisible", false
@@ -136,7 +136,7 @@ func NodeFromNodeInfo(ni *NodeInfo) *Node {
 	n.ID = NodeID(ni.ID)
 	n.ThisNodeInfo = *ni
 	n.Name = ni.Name
-	n.SetReachable( true) //This is based on the assumption that the node info has been just obtained
+	n.SetReachable(true) //This is based on the assumption that the node info has been just obtained
 	return n
 }
 
@@ -150,7 +150,7 @@ func NodeFromPeerInfo(pi *PeerInfo) *Node {
 
 func (bcn *BlockchainNet) isOk() bool {
 	for k, v := range bcn.Nodes {
-		if(k != v.ID) {
+		if k != v.ID {
 			log.Fatal("false key %s for node %s\n", k, v.ID)
 			return false
 		}
