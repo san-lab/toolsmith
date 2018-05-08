@@ -9,7 +9,7 @@ import (
 
 func (rpcClient *Client) Rescan() error {
 	for _, node := range rpcClient.NetModel.Nodes {
-		err := rpcClient.collectNodeInfo(node)
+		err := rpcClient.collectNodeInfo(node, true)
 		if err != nil {
 			log.Println(err)
 
@@ -81,9 +81,6 @@ func (rpcClient *Client) HeartBeat() (ok bool, nodes int) {
 func (rpcClient *Client) Bloop() (blocks map[string]interface{}, err error) {
 	blocks = map[string]interface{}{}
 	for _, node := range rpcClient.NetModel.Nodes {
-		if !node.Reachable {
-			continue
-		}
 		data := rpcClient.NewCallData("eth_blockNumber")
 		//TODO: preferred address
 		var err error
@@ -127,8 +124,8 @@ func (rpcClient *Client) SetNetworkId() error {
 	return nil
 }
 
-//Update a  node Info, includig peers, txpool and block number
-func (rpcClient *Client) collectNodeInfo(node *Node) (err error) {
+//Update a  node Info, includig peers, txpool and block number. If "insist", the method will retry calling on previously unreachable addresses
+func (rpcClient *Client) collectNodeInfo(node *Node, insist bool) (err error) {
 	//log.Println("Collecting node info on " + node.ShortName() +"/" + node.IDHead(6))
 	if len(node.ID) == 0 {
 		return errors.New("cannot get info of a blank node")
@@ -140,7 +137,12 @@ func (rpcClient *Client) collectNodeInfo(node *Node) (err error) {
 	for address := range node.KnownAddresses { //Dial on all numbers
 		if _, ok := rpcClient.UnreachableAddresses[address]; ok {
 			log.Println("Hit an unrachable address: " + address)
-			continue
+			if insist {
+				delete(rpcClient.UnreachableAddresses, address)
+			} else {
+				continue
+			}
+
 		}
 		callData.Context.TargetNode = address
 		err = rpcClient.actualRpcCall(callData)
@@ -197,7 +199,7 @@ func (rpcClient *Client) collectNodeInfo(node *Node) (err error) {
 //Collect  nodes Info recursing through peers
 //The effects are in the NetworkModel
 func (rpcClient *Client) collectNodeInfoRecursively(parent *Node) error {
-	err := rpcClient.collectNodeInfo(parent)
+	err := rpcClient.collectNodeInfo(parent, false)
 	if err != nil {
 		return err
 	}

@@ -31,6 +31,7 @@ func (bcn *BlockchainNet) GetJsonNodes() []Visnode {
 func (bcn *BlockchainNet) VisjsEdges() template.JS {
 	ve := []Visedge{}
 	for _, nd := range bcn.Nodes {
+		if !nd.Reachable {continue}
 		for adr, pnd := range nd.Peers {
 			if nd.ID > pnd.ID {
 				retAddr, _ := pnd.PeerSeenAs(nd)
