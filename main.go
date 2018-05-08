@@ -6,6 +6,7 @@ import (
 	"github.com/san-lab/toolsmith/httphandler"
 	"log"
 	"net/http"
+	"github.com/san-lab/toolsmith/mailer"
 )
 
 //Parsing flags "ethport" and "host"
@@ -36,6 +37,7 @@ func main() {
 	fs := http.FileServer(http.Dir("static"))
 	http.HandleFunc("/static/", http.StripPrefix("/static", fs).ServeHTTP)
 	http.HandleFunc("/", handler.Handler)
+	mailer.SendEmail([]*string{},"","","")
 	log.Fatal(http.ListenAndServe(":"+c.HttpPort, nil))
 }
 

@@ -1,3 +1,6 @@
+
+// +build awsmail
+
 /*
    Copyright 2010-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
    This file is licensed under the Apache License, Version 2.0 (the "License").
@@ -9,16 +12,16 @@
    specific language governing permissions and limitations under the License.
 */
 
-package main
+
+package mailer
 
 import (
-	"fmt"
-
 	//go get -u github.com/aws/aws-sdk-go
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ses"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"log"
 )
 
 const (
@@ -43,13 +46,22 @@ const (
 		"<a href='https://aws.amazon.com/sdk-for-go/'>AWS SDK for Go</a>.</p>"
 
 	//The email body for recipients with non-HTML email clients.
-	TextBody = "This email was sent with Amazon SES using the AWS SDK for Go."
+	PlainTextBody = "This email was sent with Amazon SES using the AWS SDK for Go."
 
 	// The character encoding for the email.
 	CharSet = "UTF-8"
 )
 
+
 func main() {
+	to := []*string{
+		aws.String(Recipient),
+	}
+	SendEmail(to, Subject,  HtmlBody, PlainTextBody)
+}
+
+//Sends an email to the []*string recipients from a fixed Sender email
+func SendEmail(to []*string, subject string, htmlBody string, plainTextBody string) {
 	// Create a new session in the us-west-2 region.
 	// Replace us-west-2 with the AWS Region you're using for Amazon SES.
 	sess, err := session.NewSession(&aws.Config{
@@ -64,24 +76,22 @@ func main() {
 		Destination: &ses.Destination{
 			CcAddresses: []*string{
 			},
-			ToAddresses: []*string{
-				aws.String(Recipient),
-			},
+			ToAddresses: to,
 		},
 		Message: &ses.Message{
 			Body: &ses.Body{
 				Html: &ses.Content{
 					Charset: aws.String(CharSet),
-					Data:    aws.String(HtmlBody),
+					Data:    aws.String(htmlBody),
 				},
 				Text: &ses.Content{
 					Charset: aws.String(CharSet),
-					Data:    aws.String(TextBody),
+					Data:    aws.String(plainTextBody),
 				},
 			},
 			Subject: &ses.Content{
 				Charset: aws.String(CharSet),
-				Data:    aws.String(Subject),
+				Data:    aws.String(subject),
 			},
 		},
 		Source: aws.String(Sender),
@@ -97,23 +107,23 @@ func main() {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case ses.ErrCodeMessageRejected:
-				fmt.Println(ses.ErrCodeMessageRejected, aerr.Error())
+				log.Println(ses.ErrCodeMessageRejected, aerr.Error())
 			case ses.ErrCodeMailFromDomainNotVerifiedException:
-				fmt.Println(ses.ErrCodeMailFromDomainNotVerifiedException, aerr.Error())
+				log.Println(ses.ErrCodeMailFromDomainNotVerifiedException, aerr.Error())
 			case ses.ErrCodeConfigurationSetDoesNotExistException:
-				fmt.Println(ses.ErrCodeConfigurationSetDoesNotExistException, aerr.Error())
+				log.Println(ses.ErrCodeConfigurationSetDoesNotExistException, aerr.Error())
 			default:
-				fmt.Println(aerr.Error())
+				log.Println(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			log.Println(err.Error())
 		}
 
 		return
 	}
 
-	fmt.Println("Email Sent to address: " + Recipient)
-	fmt.Println(result)
+	log.Println("Email Sent to address: " + Recipient)
+	log.Println(result)
 }

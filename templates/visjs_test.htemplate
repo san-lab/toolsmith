@@ -32,20 +32,13 @@
 <body>
 
 
-<table id="container"><tr>
-    <td> <div id="mynetwork" style="height: 400px; width: 600px; float: left" ></div>
-        <div id="stat"  >
-           <button type="button" onclick="circle(nodes)">Cirlce graph</button></div>
-    </td>
-    <td>
-        <div id="textpane" style="height: 400px; width: 600px; float: left; padding-top: 20px; padding-left: 30px;" >
-            {{template "nodelist" .}}
-        </div></td>
-</tr></table>
-
+<div id="mynetwork" style="height: 400px; width: 600px; float: left" ></div>
+<div id="textpane" style="height: 400px; width: 600px; float: left; padding-top: 20px; padding-left: 30px;" >
+    {{template "nodelist" .}}
+</div>
 <script type="text/javascript">
 
-    var refIntervalId = setInterval(loadNodeList, 3000); // milliseconds
+var refIntervalId = setInterval(loadNodeList, 3000); // milliseconds
 
     // create an array with nodes
     {{template "nodes" .Client.NetModel}}
@@ -56,7 +49,7 @@
     // create a network
     var container = document.getElementById('mynetwork');
     edges.font = {align: 'bottom'};
-    var data = {
+        var data = {
         nodes: nodes,
         edges: edges
     };
@@ -81,25 +74,25 @@
     //circle(nodes);
 
     network.on("hoverEdge", function(params){
-        var e = edges.get(params.edge);
-        e.font={size:12};
-        edges.update(e);
+            var e = edges.get(params.edge);
+            e.font={size:12};
+            edges.update(e);
 
-    });
+        });
 
     network.on("blurEdge", function(params){
-        var e = edges.get(params.edge);
-        e.font={size:0};
-        edges.update(e);
+            var e = edges.get(params.edge);
+            e.font={size:0};
+            edges.update(e);
     });
 
     network.on("doubleClick", function(params) {
-            var nodeId=params.nodes[0];
-            var node = nodes.get(nodeId);
-            node.x=0;
-            node.y=0;
-            nodes.update(node);
-        }
+        var nodeId=params.nodes[0];
+        var node = nodes.get(nodeId);
+        node.x=0;
+        node.y=0;
+        nodes.update(node);
+    }
     );
 
     function loadNodeList() {
@@ -129,6 +122,9 @@
 
 </script>
 
+<div id="stat" ></div>
+
+<button type="button" onclick="circle(nodes)">Cirlce graph</button>
 </body>
 </html>
 
