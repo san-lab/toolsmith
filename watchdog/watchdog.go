@@ -100,6 +100,10 @@ func (w *Watchdog) probe() {
 	}
 }
 
+func (w *Watchdog) GetStatus() State {
+	return w.state
+}
+
 //in seconds
 func (w *Watchdog) SetInterval(interval int64) {
 	w.config.ProbeInterval = time.Duration(interval)*time.Second

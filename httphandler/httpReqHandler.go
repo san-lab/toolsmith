@@ -36,6 +36,7 @@ const blockrecipient = "blockrecipient"
 const removerecipient = "removerecipient"
 const emailparamname = "addr"
 const setwatchdoginterval = "setwatchdoginterval"
+const watchdogstatus = "watchdogstatus"
 
 //This is the glue between the http requests and the (hopefully) generic RPC client
 
@@ -160,6 +161,9 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 		if err == nil {
 			lhh.watchdog.SetInterval(i)
 		}
+	case watchdogstatus:
+		rdata.BodyData=lhh.watchdog
+		rdata.TemplateName="watchdogstatus"
 	default:
 		err_msg := fmt.Sprintf("Unknown command: %s", comm)
 		rdata.Error = err_msg
