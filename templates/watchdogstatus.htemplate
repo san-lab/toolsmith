@@ -1,0 +1,25 @@
+{{define "watchdogstatus"}}
+{{template "header" .HeaderData}}
+{{with .Error}}Error: {{.}}{{end}}
+{{if .HeaderData.Watchdog}}
+    <p>Watchdog Status:  </p>
+     State: {{.BodyData.GetStatus}} </br>
+     Interval: {{.BodyData.GetInterval}} </br>
+</p>
+    {{with .BodyData.GetRecipients}}
+    Alert address list: </br>
+        <table>
+            {{range $key, $val := .}}
+            <tr>
+                <td> {{$key}}:</td>
+                <td>{{$val}}</td>
+
+            </tr>
+            {{end}}
+        </table>
+     {{end}}
+{{else}}
+        Watchdog has not been started
+{{end}}
+{{template "footer" .FooterData}}
+{{end}}
