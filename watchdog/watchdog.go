@@ -94,7 +94,7 @@ func (w *Watchdog) probe() {
 		if w.state== okState {
 			w.state=detected
 			//TODO: use templates
-			log.Println("good: ", good, " nnodes: ", nnodes)
+			//log.Println("good: ", good, " nnodes: ", nnodes)
 			message := fmt.Sprintf("This is a warning from %s:</br> -Blocks being mined: %v </br> -Nodes not responding: %v", w.rpcClient.LocalInfo.ClientIp, good, len(w.rpcClient.NetModel.Nodes)-nnodes)
 			mailer.SendEmail(w.ListRecipients(), "Something wrong with Blockchain Net", message, message)
 			w.state=notified
