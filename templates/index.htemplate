@@ -8,7 +8,6 @@
     <li>debug: {{if .Client.DebugMode}} on {{else}} off {{end}}</li>
     <li>Network id: {{.Client.NetModel.NetworkID}}</li>
     <li>Known nodes: {{len .Client.NetModel.Nodes}}</li>
-    <li></li>
 </ul>
 {{template "footer" .FooterData}}
 {{end}}

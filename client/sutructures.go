@@ -191,6 +191,8 @@ type CallContext struct {
 	RawMode        bool
 	RequestPath    string
 	Refresh        int
+	Watchdog       bool
+	WatchdogInterval int64
 }
 
 //Implementing the HeaderData methods

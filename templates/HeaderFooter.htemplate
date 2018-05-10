@@ -20,6 +20,9 @@
                 <td >{{template "rebuildNet"}}</td>
                 <td >{{template "netStatus"}}</td>
                 <td >{{template "rtemplates"}}</td>
+                {{if .Watchdog}}
+                <td>WDGI: {{.WatchdogInterval}}</td>
+                {{end}}
             </tr>
         </table>
 

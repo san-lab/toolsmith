@@ -13,6 +13,7 @@ import (
 	"os"
 	"strings"
 	"time"
+
 )
 
 //A rest api client, wrapping an http client
@@ -23,7 +24,7 @@ type Client struct {
 	UserAgent            string
 	httpClient           HttpClient
 	seq                  uint
-	r                    *templates.Renderer
+	renderer             *templates.Renderer
 	LocalInfo            CallContext
 	NetModel             BlockchainNet
 	DefaultRPCPort       string

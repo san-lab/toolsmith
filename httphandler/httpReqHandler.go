@@ -12,6 +12,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"github.com/san-lab/toolsmith/watchdog"
+	"context"
+	"strconv"
 )
 
 const toggle = "togglerawmode"
@@ -28,6 +31,11 @@ const mockblock = "mockblock"
 const mockunblock = "mockunblock"
 const rawnodes = "rawnodes"
 const fullmesh = "fullmesh"
+const addrecipient = "addrecipient"
+const blockrecipient = "blockrecipient"
+const removerecipient = "removerecipient"
+const emailparamname = "addr"
+const setwatchdoginterval = "setwatchdoginterval"
 
 //This is the glue between the http requests and the (hopefully) generic RPC client
 
@@ -35,15 +43,19 @@ type LilHttpHandler struct {
 	//defaultContext client.CallContext
 	config    Config
 	rpcClient *client.Client
-	r         *templates.Renderer
+	renderer  *templates.Renderer
+	watchdog *watchdog.Watchdog
 }
 
 //Creating a naw http handler with its embedded rpc client and html renderer
-func NewHttpHandler(c Config) (lhh *LilHttpHandler, err error) {
+func NewHttpHandler(c Config, ctx context.Context) (lhh *LilHttpHandler, err error) {
 	lhh = &LilHttpHandler{}
 	lhh.config = c
-	lhh.r = templates.NewRenderer()
+	lhh.renderer = templates.NewRenderer()
 	lhh.rpcClient, err = client.NewClient(c.EthHost, c.MockMode, c.DumpRPC)
+	if c.StartWatchdog {
+		lhh.watchdog = watchdog.StartWatchdog(lhh.rpcClient, ctx)
+	}
 	return lhh, err
 }
 
@@ -79,7 +91,7 @@ func (lhh *LilHttpHandler) Handler(w http.ResponseWriter, r *http.Request) {
 			lhh.rpcClient.DiscoverNetwork()
 		}
 		rdata := templates.RenderData{TemplateName: "magic", HeaderData: &cc, Client: lhh.rpcClient}
-		err := lhh.r.RenderResponse(w, rdata)
+		err := lhh.renderer.RenderResponse(w, rdata)
 		if err != nil {
 			log.Println(err)
 		}
@@ -90,6 +102,8 @@ func (lhh *LilHttpHandler) Handler(w http.ResponseWriter, r *http.Request) {
 func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request, comm string) {
 	var err error
 	cc := lhh.rpcClient.LocalInfo
+	cc.Watchdog = lhh.watchdog != nil
+	if cc.Watchdog {cc.WatchdogInterval=lhh.watchdog.GetInterval()}
 	rdata := templates.RenderData{HeaderData: &cc, TemplateName: templates.Home, Client: lhh.rpcClient}
 	switch comm {
 	case discover:
@@ -119,7 +133,7 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 		lhh.rpcClient.Rescan()
 		rdata.BodyData = &lhh.rpcClient.NetModel
 	case loadtemplates:
-		lhh.r.LoadTemplates()
+		lhh.renderer.LoadTemplates()
 	case rawnodes:
 		rdata.TemplateName = "nodelist"
 		lhh.rpcClient.Rescan()
@@ -131,6 +145,21 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 		lhh.rpcClient.BlockAddress(r.Form["addr"][0])
 	case mockunblock:
 		lhh.rpcClient.UnblockAddress(r.Form["addr"][0])
+	case addrecipient:
+		email := r.Form.Get(emailparamname)
+		lhh.watchdog.AddRecipient(email)
+		rdata.TemplateName = "nightwatch"
+		rdata.BodyData = lhh.watchdog.GetRecipients()
+	case blockrecipient:
+		email := r.Form.Get(emailparamname)
+		lhh.watchdog.BlockRecipient(email)
+		rdata.TemplateName = "nightwatch"
+		rdata.BodyData = lhh.watchdog.GetRecipients()
+	case setwatchdoginterval:
+		i,err := strconv.ParseInt(r.Form.Get("interval"), 0, 0)
+		if err == nil {
+			lhh.watchdog.SetInterval(i)
+		}
 	default:
 		err_msg := fmt.Sprintf("Unknown command: %s", comm)
 		rdata.Error = err_msg
@@ -139,7 +168,7 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		log.Println(err)
 	}
-	lhh.r.RenderResponse(w, rdata)
+	lhh.renderer.RenderResponse(w, rdata)
 
 }
 
@@ -211,7 +240,7 @@ func (lhh *LilHttpHandler) RpcCallAndRespond(w http.ResponseWriter, r *http.Requ
 		}
 
 	}
-	lhh.r.RenderResponse(w, rdata)
+	lhh.renderer.RenderResponse(w, rdata)
 
 }
 
@@ -220,4 +249,5 @@ type Config struct {
 	HttpPort string
 	MockMode bool
 	DumpRPC  bool
+	StartWatchdog bool
 }
