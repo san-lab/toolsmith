@@ -42,43 +42,48 @@ func (rpcClient *Client) DiscoverNetwork() error {
 	return nil
 }
 
-
-//Returns block-progress flag and the number of nodes reachable
-func (rpcClient *Client) HeartBeat() (ok bool, nodes int) {
-	nodes = 0
-	if len(rpcClient.NetModel.Nodes) == 0 {
-		ok = false
-		nodes = 0
+var threshold time.Duration = time.Second*15
+//Returns block-progress flag and the number of unreachable nodes and non-progressing nodes
+//Returns -1 as the number of unreachables if not enough time since previous probe
+func (rpcClient *Client) HeartBeat() (progress bool, unreachables int, stucknodes int) {
+	unreachables = 0
+	if len(rpcClient.NetModel.Nodes)==0 {
+		progress=true
+		stucknodes=-1
 		return
 	}
-	old := int64(rpcClient.NetModel.AccessNode.LastBlockNumberSample.BlockNumber)
-	m, err := rpcClient.Bloop()
-	if err != nil {
-		return false, 0
-	}
-	var prev int64
-
-	for _, v := range m {
-		bns, ok1 := v.(BlockNumberSample)
-		if !ok1 {
-			continue //unreachable node
+	for _, node := range rpcClient.NetModel.Nodes {
+		data := rpcClient.NewCallData("eth_blockNumber")
+		var err error
+		for target := range node.KnownAddresses {
+			data.Context.TargetNode = target
+			err = rpcClient.actualRpcCall(data)
+			if err == nil {
+				break
+			}
 		}
-		nodes++
-		bn := int64(bns.BlockNumber)
-		if prev == 0 {
-			prev = bn
+		if err!= nil {
+			unreachables++
+			node.Reachable=false
 			continue
-		}
-		if r := bn - prev; r > 2 || r < -2 {
-			ok = false //two nodes have too divergent block numbers
-			break
 		} else {
-			ok=true //at least one node reached
+			old := node.LastBlockNumberSample
+			newSample, ok := data.ParsedResult.(*BlockNumberSample)
+			if !ok {
+				fmt.Println("Type assertion failed for BlockNumberSample. This should not have happened.")
+			}
+			if time.Time(newSample.Sampled).Sub( time.Time(old.Sampled)) < threshold {
+				progress=true
+				unreachables = -1
+				return //not enough time since last probe
+			}
+			if node.LastBlockNumberSample.BlockNumber > old.BlockNumber {
+				progress=true  //at least one node shows progress
+			} else {
+				stucknodes++
+			}
 		}
 
-	}
-	if prev-old < 1 { //TODO: Elaborate, take timestamp into account
-		ok = false
 	}
 	return
 }
@@ -87,7 +92,6 @@ func (rpcClient *Client) Bloop() (blocks map[string]interface{}, err error) {
 	blocks = map[string]interface{}{}
 	for _, node := range rpcClient.NetModel.Nodes {
 		data := rpcClient.NewCallData("eth_blockNumber")
-		//TODO: preferred address
 		var err error
 		for target := range node.KnownAddresses {
 			data.Context.TargetNode = target
@@ -109,7 +113,6 @@ func (rpcClient *Client) Bloop() (blocks map[string]interface{}, err error) {
 		} else {
 			blocks[node.ShortName()] = *node.LastBlockNumberSample
 		}
-
 	}
 	return
 }

@@ -37,6 +37,7 @@ const removerecipient = "removerecipient"
 const emailparamname = "addr"
 const setwatchdoginterval = "setwatchdoginterval"
 const watchdogstatus = "watchdogstatus"
+const setwatchdogstatusok = "setwatchdogstatusok"
 
 //This is the glue between the http requests and the (hopefully) generic RPC client
 
@@ -121,8 +122,8 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 		rdata.BodyData = m
 		rdata.HeaderData.SetRefresh(5)
 	case heartbeat:
-		ok, nodes := lhh.rpcClient.HeartBeat()
-		fmt.Fprintf(w, "%s> Network heartbeat: %v for %v nodes", client.MyTime(time.Now()), ok, nodes)
+		ok, nodesu, nodess := lhh.rpcClient.HeartBeat()
+		fmt.Fprintf(w, "%s>  \n progress: %v, \n unreachable %v, \n stuck %v", client.MyTime(time.Now()), ok, nodesu, nodess)
 		return
 		//rdata.Error = fmt.Sprintf("Heartbeat: %s for the %v nodes reachable", ok, nodes) //A hack!
 	case debugOff:
@@ -161,7 +162,10 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 		if err == nil {
 			lhh.watchdog.SetInterval(i)
 		}
-	case watchdogstatus:
+	case setwatchdogstatusok:
+		lhh.watchdog.SetStatusOk()
+		fallthrough
+	case watchdogstatus :
 		rdata.BodyData=lhh.watchdog
 		rdata.TemplateName="watchdogstatus"
 	default:

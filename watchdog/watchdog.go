@@ -86,20 +86,24 @@ func (w *Watchdog) run () {
 //TODO mutex this method
 func (w *Watchdog) probe() {
 	log.Println("Watching out!")
-	good, nnodes := w.rpcClient.HeartBeat()
+	progress , unreach, stuck := w.rpcClient.HeartBeat()
 
-	if good && nnodes == len(w.rpcClient.NetModel.Nodes) {
+	if progress && unreach<=0 && stuck <=0 {
 		w.state= okState
 	} else {
 		if w.state== okState {
 			w.state=detected
 			//TODO: use templates
 			//log.Println("good: ", good, " nnodes: ", nnodes)
-			message := fmt.Sprintf("This is a warning from %s:</br> -Blocks being mined: %v </br> -Nodes not responding: %v", w.rpcClient.LocalInfo.ClientIp, good, len(w.rpcClient.NetModel.Nodes)-nnodes)
-			mailer.SendEmail(w.ListRecipients(), "Something wrong with Blockchain Net", message, message)
+			message := fmt.Sprintf("This is a warning from %s:</br> -Blocks being mined: %v </br> -Nodes not responding: %v</br> -Nodes not progressing: %v", w.rpcClient.LocalInfo.ClientIp, progress, unreach, stuck)
+			mailer.SendEmail(w.RecipientsAWSStyle(), "Something wrong with Blockchain Net", message, message)
 			w.state=notified
 		}
 	}
+}
+
+func (w *Watchdog) SetStatusOk() {
+	w.state = okState
 }
 
 func (w *Watchdog) GetStatus() State {
@@ -119,11 +123,12 @@ func (w *Watchdog) GetInterval() int64 {
 }
 
 //List active recipients in aws-sdk friendly format
-func (w *Watchdog) ListRecipients() []*string {
+func (w *Watchdog) RecipientsAWSStyle() []*string {
 	list := []*string{}
 	for em, active := range w.config.Recipients {
 		if active {
-			list = append(list, &em)
+			tmp := em
+			list = append(list, &tmp)
 		}
 	}
 	return list
