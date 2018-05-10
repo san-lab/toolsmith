@@ -87,13 +87,15 @@ func (w *Watchdog) run () {
 func (w *Watchdog) probe() {
 	log.Println("Watching out!")
 	good, nnodes := w.rpcClient.HeartBeat()
+
 	if good && nnodes == len(w.rpcClient.NetModel.Nodes) {
 		w.state= okState
 	} else {
 		if w.state== okState {
 			w.state=detected
 			//TODO: use templates
-			message := fmt.Sprintf("This is a warning from %s:\n -Blocks being mined: %v \n -Nodes not responding: %v", w.rpcClient.LocalInfo.ClientIp, good, len(w.rpcClient.NetModel.Nodes)-nnodes)
+			log.Println("good: ", good, " nnodes: ", nnodes)
+			message := fmt.Sprintf("This is a warning from %s:</br> -Blocks being mined: %v </br> -Nodes not responding: %v", w.rpcClient.LocalInfo.ClientIp, good, len(w.rpcClient.NetModel.Nodes)-nnodes)
 			mailer.SendEmail(w.ListRecipients(), "Something wrong with Blockchain Net", message, message)
 			w.state=notified
 		}
