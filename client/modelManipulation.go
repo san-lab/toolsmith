@@ -57,7 +57,7 @@ func (rpcClient *Client) HeartBeat() (ok bool, nodes int) {
 		return false, 0
 	}
 	var prev int64
-	ok = nodes > 0
+
 	for _, v := range m {
 		bns, ok1 := v.(BlockNumberSample)
 		if !ok1 {
@@ -72,6 +72,8 @@ func (rpcClient *Client) HeartBeat() (ok bool, nodes int) {
 		if r := bn - prev; r > 2 || r < -2 {
 			ok = false //two nodes have too divergent block numbers
 			break
+		} else {
+			ok=true //at least one node reached
 		}
 
 	}
