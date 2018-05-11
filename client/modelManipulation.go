@@ -12,7 +12,6 @@ func (rpcClient *Client) Rescan() error {
 		err := rpcClient.collectNodeInfo(node, true)
 		if err != nil {
 			log.Println(err)
-
 		}
 	}
 	return nil
@@ -42,48 +41,25 @@ func (rpcClient *Client) DiscoverNetwork() error {
 	return nil
 }
 
+
 var threshold time.Duration = time.Second*15
+var previousSample map[NodeID]int64
+var previousSampleTime time.Time
+
 //Returns block-progress flag and the number of unreachable nodes and non-progressing nodes
 //Returns -1 as the number of unreachables if not enough time since previous probe
 func (rpcClient *Client) HeartBeat() (progress bool, unreachables int, stucknodes int) {
-	unreachables = 0
-	if len(rpcClient.NetModel.Nodes)==0 {
-		progress=true
-		stucknodes=-1
-		return
-	}
+	rpcClient.Rescan()
 	for _, node := range rpcClient.NetModel.Nodes {
-		data := rpcClient.NewCallData("eth_blockNumber")
-		var err error
-		for target := range node.KnownAddresses {
-			data.Context.TargetNode = target
-			err = rpcClient.actualRpcCall(data)
-			if err == nil {
-				break
-			}
-		}
-		if err!= nil {
+		if !node.IsReachable() {
 			unreachables++
-			node.Reachable=false
 			continue
-		} else {
-			old := node.LastBlockNumberSample
-			newSample, ok := data.ParsedResult.(*BlockNumberSample)
-			if !ok {
-				fmt.Println("Type assertion failed for BlockNumberSample. This should not have happened.")
-			}
-			if time.Time(newSample.Sampled).Sub( time.Time(old.Sampled)) < threshold {
-				progress=true
-				unreachables = -1
-				return //not enough time since last probe
-			}
-			if node.LastBlockNumberSample.BlockNumber > old.BlockNumber {
-				progress=true  //at least one node shows progress
-			} else {
-				stucknodes++
-			}
 		}
-
+		progress = progress || node.progress
+		if !node.progress {
+			stucknodes++
+			continue
+		}
 	}
 	return
 }
@@ -91,28 +67,15 @@ func (rpcClient *Client) HeartBeat() (progress bool, unreachables int, stucknode
 func (rpcClient *Client) Bloop() (blocks map[string]interface{}, err error) {
 	blocks = map[string]interface{}{}
 	for _, node := range rpcClient.NetModel.Nodes {
-		data := rpcClient.NewCallData("eth_blockNumber")
-		var err error
-		for target := range node.KnownAddresses {
-			data.Context.TargetNode = target
-			err = rpcClient.actualRpcCall(data)
-			if err == nil {
-				break
-			}
-		}
+		err := node.sampleBlockNo(rpcClient)
 		if err != nil {
 			blocks[node.ShortName()] = "UNREACHABLE!!!"
 			fmt.Println(err)
 			continue
 			//return nil, err
 		}
-		var ok bool
-		node.LastBlockNumberSample, ok = data.ParsedResult.(*BlockNumberSample)
-		if !ok {
-			fmt.Println("Type assertion failed")
-		} else {
-			blocks[node.ShortName()] = *node.LastBlockNumberSample
-		}
+		blocks[node.ShortName()] = *node.LastBlockNumberSample
+
 	}
 	return
 }
@@ -163,9 +126,11 @@ func (rpcClient *Client) collectNodeInfo(node *Node, insist bool) (err error) {
 
 	}
 	if err != nil { //no contact on any address
-		node.Reachable = false
+		node.SetReachable ( false)
 		return err
 	}
+	node.SetReachable(true)
+	node.prefAddress=prefaddr
 	var ok bool
 	node.JSONPeers, ok = callData.ParsedResult.(*PeerArray)
 	if !ok {
@@ -190,19 +155,44 @@ func (rpcClient *Client) collectNodeInfo(node *Node, insist bool) (err error) {
 	if err != nil || !callData.Parsed {
 		return err
 	}
-	//Get the BlockNumber
 	node.TxpoolStatus = callData.ParsedResult.(*TxpoolStatusSample)
-	callData.Command.Method = "eth_blockNumber"
-	err = rpcClient.actualRpcCall(callData)
-	if err != nil {
+
+	//Get the BlockNumber
+	err = node.sampleBlockNo(rpcClient)
+
+	return err
+}
+
+func (n *Node) sampleBlockNo(rpc *Client) error {
+	callData := rpc.NewCallData("eth_blockNumber")
+	callData.Context.TargetNode=n.PrefAddress()
+	err := rpc.actualRpcCall(callData)
+	if err != nil || ! callData.Parsed {
 		return err
 	}
-	node.LastBlockNumberSample, ok = callData.ParsedResult.(*BlockNumberSample)
+	blockNumberSample, ok := callData.ParsedResult.(*BlockNumberSample)
 	if !ok {
-		log.Println("Type assertion failed")
+		err = errors.New("Type assertion failed")
+		log.Println(err)
+		return err
+	}
+	if n.LastBlockNumberSample == nil {
+		n.LastBlockNumberSample = blockNumberSample
+		return nil
+	}
+	if blockNumberSample.BlockNumber > n.LastBlockNumberSample.BlockNumber {
+		n.PrevBlockNumberSample = n.LastBlockNumberSample
+		n.LastBlockNumberSample = blockNumberSample
+		n.progress = true
+	} else {
+		if time.Time(blockNumberSample.Sampled).Sub(time.Time(n.LastBlockNumberSample.Sampled)) > threshold {
+			n.progress=false
+		}
 	}
 	return nil
 }
+
+
 
 //Collect  nodes Info recursing through peers
 //The effects are in the NetworkModel

@@ -60,7 +60,7 @@ func StartWatchdog(rpcClient *client.Client, ctx context.Context) *Watchdog {
 		instance.config.ProbeInterval = defaultProbeInterval
 	}
 	instance.execContext = ctx
-	instance.ticker = time.NewTicker(defaultProbeInterval)
+	instance.ticker = time.NewTicker(instance.config.ProbeInterval)
 	instance.wg, _ = ctx.Value("WaitGroup").(*sync.WaitGroup)
 	instance.wg.Add(1)
 	instance.state=reset

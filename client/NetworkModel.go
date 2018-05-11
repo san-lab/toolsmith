@@ -28,11 +28,6 @@ func (bcn *BlockchainNet) FindOrAddNode(nn *Node) bool {
 	}
 }
 
-func (bcn *BlockchainNet) listReaches() {
-	for _, v := range bcn.Nodes {
-		log.Printf("%s is reachable: %v\n", v.ShortName(), v.Reachable)
-	}
-}
 
 func NewBlockchainNet() *BlockchainNet {
 	bl := &BlockchainNet{}
@@ -65,10 +60,14 @@ type Node struct {
 	KnownAddresses        map[string]bool
 	JSONPeers             *PeerArray // Should not be needed
 	LastBlockNumberSample *BlockNumberSample
+	PrevBlockNumberSample *BlockNumberSample
 	TxpoolStatus          *TxpoolStatusSample
 	Peers                 map[string]*Node // ipaddress -> node
-	LastPing              MyTime
-	Reachable             bool
+	LastReach             MyTime
+	LastFail			 MyTime
+	issReachable           bool
+	prefAddress string
+	progress bool
 }
 
 func (bcn BlockchainNet) ResolveAddress(addr string) (*Node, bool) {
@@ -100,8 +99,10 @@ func (n Node) ShortName() string {
 }
 
 //This is a stub. The address does not include the rpc port
-//TODO: actual smarts for selecting the preferred address
 func (n Node) PrefAddress() string {
+	if len(n.prefAddress) > 0 {
+		return n.prefAddress
+	}
 	for a, ok := range n.KnownAddresses {
 		if ok {
 			return a
@@ -120,8 +121,16 @@ func (n Node) IDTail(i int) string {
 
 func (n *Node) SetReachable(is bool) {
 	log.Printf("Setting %s as reachable=%v\n", n.ShortName(), is)
-	n.Reachable = is
-	n.LastPing = MyTime(time.Now())
+	n.issReachable = is
+	if is {
+		n.LastReach = MyTime(time.Now())
+	} else {
+		n.LastFail = MyTime(time.Now())
+	}
+}
+
+func (n *Node) IsReachable() bool {
+	return n.issReachable
 }
 
 func NewNode() *Node {
