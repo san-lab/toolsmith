@@ -53,12 +53,6 @@ const (
 )
 
 
-func main() {
-	to := []*string{
-		aws.String(Recipient),
-	}
-	SendEmail(to, Subject,  HtmlBody, PlainTextBody)
-}
 
 //Sends an email to the []*string recipients from a fixed Sender email
 func (m *Mailer) SendEmail(to []*string, subject string, htmlBody string, plainTextBody string) {
