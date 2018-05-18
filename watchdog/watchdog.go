@@ -16,12 +16,25 @@ import (
 const configFile = "watchdog.config.json"
 const defaultProbeInterval = time.Second * 5
 
-type State string
+type State struct {
+	main     string
+	severity string
+}
 
-var okState State = "OK"
-var detected State = "DETECTED"
-var notified State = "NOTIFIED"
-var reset State = "RESET"
+var okState = "OK"
+var detected = "DETECTED"
+var notified = "NOTIFIED"
+var reset = "RESET"
+
+func (s *State) isOK() bool {
+	return s.main == okState
+}
+func (s *State) isNotified() bool {
+	return s.main == notified
+}
+func (s *State) isDetected() bool {
+	return s.main == detected
+}
 
 type Watchdog struct {
 	config       Config
@@ -61,7 +74,7 @@ func StartWatchdog(rpcClient *client.Client, ctx context.Context) *Watchdog {
 	instance.ticker = time.NewTicker(instance.config.ProbeInterval)
 	instance.wg, _ = ctx.Value("WaitGroup").(*sync.WaitGroup)
 	instance.wg.Add(1)
-	instance.state = reset
+	instance.state = State{main: reset}
 	go instance.run()
 	return instance
 }
@@ -80,28 +93,56 @@ func (w *Watchdog) run() {
 	}
 }
 
-//TODO mutex this method
+type notificationType string
+var escalate = notificationType("escalate")
+var deescalate = notificationType("deescalate")
+var none = notificationType("none")
+
+func (w *Watchdog) shouldNotify(s *State) notificationType {
+	if w.state.isNotified() && s.isOK() {
+		return deescalate
+	}
+	if w.state.isOK() && s.isDetected() {
+		return escalate
+	}
+	if s.isDetected() && w.state.severity=="AMBER" && s.severity=="RED" {
+		return escalate
+	}
+	return none
+}
+
 func (w *Watchdog) probe() {
+	mx.Lock()
+	defer mx.Unlock()
 	log.Println("Watching out!")
 	progress, unreach, stuck := w.rpcClient.HeartBeat()
 
-	if progress && unreach <= 0 && stuck <= 0 {
-		if w.state==notified {
-			message := mailer.GetMailer().RenderOver(w.currentIssue)
-			mailer.GetMailer().SendEmail(w.RecipientsAWSStyle(), "Issue: "+ w.currentIssue +"Blochchain network back to normal", message, "it is over")
-			w.currentIssue=""
+	//Establish the new state
+	s:= State{}
+	if progress {
+		if unreach > 0 || stuck > 0 {
+			s.main=detected
+			s.severity="AMBER"
+		} else {
+			s.main=okState
 		}
-		w.state = okState
 	} else {
-		if w.state == okState {
-			w.state = detected
+		s.main=detected
+		s.severity="RED"
+	}
+
+	notif := w.shouldNotify(&s)
+	w.state=s
+	if notif==deescalate {
+			message := mailer.GetMailer().RenderOver(w.currentIssue)
+			mailer.GetMailer().SendEmail(w.RecipientsAWSStyle(), "Issue: "+w.currentIssue+">> Blochchain network back to normal", message, "it is over")
+			w.currentIssue = ""
+			
+
+	} else {
+		if notif == escalate {
 			w.currentIssue = w.generateIssueID()
-			var severity string
-			if progress {
-				severity = "AMBER"
-			} else {
-				severity = "RED"
-			}
+
 			wAddress := w.rpcClient.LocalInfo.ClientIp
 			unr := []string{}
 			stk := []string{}
@@ -120,14 +161,15 @@ func (w *Watchdog) probe() {
 				UnreachableNodes []string
 				StuckNodes       []string
 			}{
-				w.currentIssue, severity, wAddress, unr, stk,
+				w.currentIssue, s.severity, wAddress, unr, stk,
 			}
 			mailer.GetMailer().LoadTemplate() //Debug line...
 			message := mailer.GetMailer().RenderAlert(data)
 			mailer.GetMailer().SendEmail(w.RecipientsAWSStyle(), "Something wrong with Blockchain Net", message, "alert!")
-			w.state = notified
+			s.main = notified
 		}
 	}
+
 }
 
 func (w *Watchdog) generateIssueID() string {
@@ -135,7 +177,8 @@ func (w *Watchdog) generateIssueID() string {
 }
 
 func (w *Watchdog) SetStatusOk() {
-	w.state = okState
+	w.state.main = okState
+	w.state.severity =""
 }
 
 func (w *Watchdog) GetStatus() State {
