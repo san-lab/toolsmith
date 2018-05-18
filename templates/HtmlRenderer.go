@@ -18,8 +18,9 @@ func NewRenderer() *Renderer {
 	return r
 }
 
-const Raw string = "raw"
-const Home string = "home"
+
+const Raw = "raw"
+const Home = "home"
 const Network = "network"
 const Peers = "peers"
 const ListMap = "listMap"
@@ -27,7 +28,6 @@ const TxpoolStatus = "txpoolStatus"
 const BlockNumber = "blockNumber"
 
 //Taken out of the constructor with the idae of forced template reloading
-//TODO: error handling
 func (r *Renderer) LoadTemplates() {
 	var allFiles []string
 	files, err := ioutil.ReadDir("./templates")

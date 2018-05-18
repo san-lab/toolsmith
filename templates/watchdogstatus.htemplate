@@ -8,15 +8,7 @@
 </p>
     {{with .BodyData.GetRecipients}}
     Alert address list: </br>
-        <table>
-            {{range $key, $val := .}}
-            <tr>
-                <td> {{$key}}:</td>
-                <td>{{$val}}</td>
-
-            </tr>
-            {{end}}
-        </table>
+        {{template "2xXtable" .}}
      {{end}}
 {{else}}
         Watchdog has not been started

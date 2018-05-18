@@ -1,0 +1,34 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+
+</head>
+
+<body>
+Hello!
+  There is a problem with your private Blockchain network.
+<ul>
+    <li>Issue ID: {{.IssueID}}</li>
+    <li>Severity: {{.Severity}}</li>
+    <li>Watchodg machine: {{.WatchdogAddress}}</li>
+    {{with .UnreachableNodes}}<li>Unreachable nodes:
+        <ul>
+        {{range .}}
+           <li>{{.}}</li>
+    {{end}}
+        </ul>
+    </li>{{end}}
+    {{with .StuckNodes}}<li>Non-progressing nodes:
+        <ul>
+        {{range .}}
+            <li>{{.}}</li>
+        {{end}}
+        </ul>
+    </li>{{end}}
+</ul>
+
+You are receiving this email because you are on a watchdog mailing list of the Blockchain network.
+
+</body>
+
+</html>

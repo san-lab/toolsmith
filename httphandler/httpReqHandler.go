@@ -100,7 +100,7 @@ func (lhh *LilHttpHandler) Handler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-//TODO
+
 func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request, comm string) {
 	var err error
 	cc := lhh.rpcClient.LocalInfo
@@ -150,13 +150,18 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 	case addrecipient:
 		email := r.Form.Get(emailparamname)
 		lhh.watchdog.AddRecipient(email)
-		rdata.TemplateName = "nightwatch"
-		rdata.BodyData = lhh.watchdog.GetRecipients()
+		rdata.TemplateName = "watchdogstatus"
+		rdata.BodyData = lhh.watchdog
 	case blockrecipient:
 		email := r.Form.Get(emailparamname)
 		lhh.watchdog.BlockRecipient(email)
-		rdata.TemplateName = "nightwatch"
-		rdata.BodyData = lhh.watchdog.GetRecipients()
+		rdata.TemplateName = "watchdogstatus"
+		rdata.BodyData = lhh.watchdog
+	case removerecipient:
+		email := r.Form.Get(emailparamname)
+		lhh.watchdog.RemoveRecipient(email)
+		rdata.TemplateName = "watchdogstatus"
+		rdata.BodyData = lhh.watchdog
 	case setwatchdoginterval:
 		i,err := strconv.ParseInt(r.Form.Get("interval"), 0, 0)
 		if err == nil {

@@ -2,15 +2,7 @@
 {{template "header" .HeaderData}}
 The list:
 {{with .BodyData}}
-<table>
-    {{range $key, $val := .}}
-  <tr>
-     <td> {{$key}}:</td>
-      <td>{{$val}}</td>
-
-  </tr>
-    {{end}}
-        </table>
+    {{template "2xXtable" . }}
 {{end}}
 {{template "footer"}}
 {{end}}

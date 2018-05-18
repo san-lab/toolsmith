@@ -42,7 +42,7 @@ func (rpcClient *Client) DiscoverNetwork() error {
 }
 
 
-var threshold time.Duration = time.Second*15
+var threshold = time.Second*15
 var previousSample map[NodeID]int64
 var previousSampleTime time.Time
 

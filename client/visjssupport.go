@@ -16,7 +16,7 @@ func (bcn *BlockchainNet) VisjsNodes() template.JS {
 }
 
 func (bcn *BlockchainNet) GetJsonNodes() []Visnode {
-	vn := []Visnode{}
+	var vn []Visnode
 	for _, nd := range bcn.Nodes {
 		vi := Visnode{Id: nd.ID, Label: nd.ShortName(), Image: "/static/ethereum_32x32.png", Shape: "image"}
 		if nd.IsReachable() {vi.Image="/static/ethereum-full_32x32.png"}
@@ -29,7 +29,7 @@ func (bcn *BlockchainNet) GetJsonNodes() []Visnode {
 }
 
 func (bcn *BlockchainNet) VisjsEdges() template.JS {
-	ve := []Visedge{}
+	var ve []Visedge
 	for _, nd := range bcn.Nodes {
 		if !nd.IsReachable() {continue}
 		for adr, pnd := range nd.Peers {

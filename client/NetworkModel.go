@@ -70,6 +70,10 @@ type Node struct {
 	progress bool
 }
 
+func (n *Node) IsStuck() bool {
+	return !n.progress
+}
+
 func (bcn BlockchainNet) ResolveAddress(addr string) (*Node, bool) {
 	for _, n := range bcn.Nodes {
 		if n.KnownAddresses[addr] {

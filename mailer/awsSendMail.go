@@ -61,7 +61,7 @@ func main() {
 }
 
 //Sends an email to the []*string recipients from a fixed Sender email
-func SendEmail(to []*string, subject string, htmlBody string, plainTextBody string) {
+func (m *Mailer) SendEmail(to []*string, subject string, htmlBody string, plainTextBody string) {
 	// Create a new session in the us-west-2 region.
 	// Replace us-west-2 with the AWS Region you're using for Amazon SES.
 	sess, err := session.NewSession(&aws.Config{

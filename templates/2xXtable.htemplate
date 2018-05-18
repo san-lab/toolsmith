@@ -1,7 +1,5 @@
-{{define "nightwatch"}}
-{{template "header" .HeaderData}}
-The list:
-{{with .BodyData}}
+{{define "2xXtable"}}
+{{if .}}
 <table>
     {{range $key, $val := .}}
   <tr>
@@ -10,7 +8,6 @@ The list:
 
   </tr>
     {{end}}
-        </table>
+</table>
 {{end}}
-{{template "footer"}}
 {{end}}

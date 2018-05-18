@@ -1,16 +1,15 @@
-
-
 {{define "nodes"}}
         var nodes = new vis.DataSet(
         {{.VisjsNodes}}
         );
-        {{end}}
+{{end}}
 
 {{define "edges"}}
         var edges = new vis.DataSet(
         {{.VisjsEdges}}
         );
 {{end}}
+
 {{define "magic"}}
 {{template "header" .HeaderData}}
 <!doctype html>
@@ -66,12 +65,11 @@
 
     var ncount = nodes.length;
     function circle (nodes) {
-        var ids = nodes.getIds()
+        var ids = nodes.getIds();
         var r = 160;
         var aspect = 1.2;
         var step = 2 * Math.PI / ncount;
         for (var i in ids) {
-            ;
             var x0 = aspect * r * Math.cos(i * step);
             var y0 = r * Math.sin(i * step) - 25;
             network.moveNode(ids[i], x0, y0);

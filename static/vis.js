@@ -1731,7 +1731,7 @@ exports.topMost = function (pile, accessors) {
           if (candidate) {
             candidate = candidate[accessors[i]];
           } else {
-            continue;
+
           }
         }
         if (typeof candidate != 'undefined') {
@@ -6408,9 +6408,8 @@ module.exports = Emitter;
 
 function Emitter(obj) {
   if (obj) return mixin(obj);
-};
-
-/**
+}
+        /**
  * Mixin the emitter properties.
  *
  * @param {Object} obj
@@ -29669,8 +29668,8 @@ __webpack_require__(62)('observable');
 //! license : MIT
 //! momentjs.com
 
-;(function (global, factory) {
-     true ? module.exports = factory() :
+(function (global, factory) {
+                true ? module.exports = factory() :
     typeof define === 'function' && define.amd ? define(factory) :
     global.moment = factory()
 }(this, (function () { 'use strict';

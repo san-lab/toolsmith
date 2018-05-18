@@ -220,7 +220,7 @@ func (rpcClient *Client) FullMesh() error {
 				if err != nil {
 					log.Println(err)
 				} else {
-					break;
+					break
 				}
 			}
 

@@ -1,0 +1,20 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+
+</head>
+
+<body>
+<p>
+Hello!
+</p>
+<p>
+  Blockchain network operation has been restored.
+The issue {{.IssueID}} that caused alert have been resolved.
+
+<p/>
+You are receiving this email because you are on a watchdog mailing list of the Blockchain network.
+
+</body>
+
+</html>
