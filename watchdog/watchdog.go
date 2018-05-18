@@ -16,12 +16,12 @@ import (
 const configFile = "watchdog.config.json"
 const defaultProbeInterval = time.Second * 5
 
-type State int
+type State string
 
-var okState State = 0
-var detected State = 1
-var notified State = 2
-var reset State = 3
+var okState State = "OK"
+var detected State = "DETECTED"
+var notified State = "NOTIFIED"
+var reset State = "RESET"
 
 type Watchdog struct {
 	config       Config
