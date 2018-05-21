@@ -1,15 +1,15 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"github.com/san-lab/toolsmith/httphandler"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"context"
 	"sync"
-	"log"
 )
 
 //Parsing flags "ethport" and "host"
@@ -21,7 +21,8 @@ func main() {
 	httpPort := flag.String("httpPort", "8090", "http port")
 	mockMode := flag.Bool("mockMode", false, "should mock http RPC client")
 	dumpRPC := flag.Bool("dumpRPC", false, "should dump RPC responses to files")
-	startWatchdog := flag.Bool("startWatchdog", false, "if a blochchain network watchdog should be started")
+	startWatchdog := flag.Bool("startWatchdog", false, "should a watchdog  be started")
+	withBasicAuth := flag.Bool("withAuth", true, "should Basic Authentication be enabled")
 	flag.Parse()
 
 	c := httphandler.Config{}
@@ -30,6 +31,7 @@ func main() {
 	c.MockMode = *mockMode
 	c.DumpRPC = *dumpRPC
 	c.StartWatchdog = *startWatchdog
+	c.BasicAuth = *withBasicAuth
 	fmt.Println("Here")
 
 	interruptChan := make(chan os.Signal)
@@ -47,8 +49,8 @@ func main() {
 	// have to be addressed as "/static/*", regardless of the location of the template
 	fs := http.FileServer(http.Dir("static"))
 	http.HandleFunc("/static/", http.StripPrefix("/static", fs).ServeHTTP)
-	http.HandleFunc("/", handler.Handler)
-	srv := http.Server{Addr:":"+c.HttpPort}
+	http.HandleFunc("/", handler.GetHandler(*withBasicAuth))
+	srv := http.Server{Addr: ":" + c.HttpPort}
 	go func() {
 		select {
 		case <-interruptChan:

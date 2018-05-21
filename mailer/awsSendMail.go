@@ -1,4 +1,3 @@
-
 // +build awsmail
 
 /*
@@ -12,15 +11,14 @@
    specific language governing permissions and limitations under the License.
 */
 
-
 package mailer
 
 import (
 	//go get -u github.com/aws/aws-sdk-go
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ses"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"log"
 )
 
@@ -41,7 +39,7 @@ const (
 	Subject = "Amazon SES Test (AWS SDK for Go)"
 
 	// The HTML body for the email.
-	HtmlBody =  "<h1>Amazon SES Test Email (AWS SDK for Go)</h1><p>This email was sent with " +
+	HtmlBody = "<h1>Amazon SES Test Email (AWS SDK for Go)</h1><p>This email was sent with " +
 		"<a href='https://aws.amazon.com/ses/'>Amazon SES</a> using the " +
 		"<a href='https://aws.amazon.com/sdk-for-go/'>AWS SDK for Go</a>.</p>"
 
@@ -52,14 +50,12 @@ const (
 	CharSet = "UTF-8"
 )
 
-
-
 //Sends an email to the []*string recipients from a fixed Sender email
 func (m *Mailer) SendEmail(to []*string, subject string, htmlBody string, plainTextBody string) {
 	// Create a new session in the us-west-2 region.
 	// Replace us-west-2 with the AWS Region you're using for Amazon SES.
 	sess, err := session.NewSession(&aws.Config{
-		Region:aws.String("eu-west-1")},
+		Region: aws.String("eu-west-1")},
 	)
 
 	// Create an SES session.
@@ -68,8 +64,7 @@ func (m *Mailer) SendEmail(to []*string, subject string, htmlBody string, plainT
 	// Assemble the email.
 	input := &ses.SendEmailInput{
 		Destination: &ses.Destination{
-			CcAddresses: []*string{
-			},
+			CcAddresses: []*string{},
 			ToAddresses: to,
 		},
 		Message: &ses.Message{

@@ -185,13 +185,13 @@ type CallData struct {
 
 //TODO: expand this stub
 type CallContext struct {
-	ClientHostName string
-	ClientIp       string
-	TargetNode     string
-	RawMode        bool
-	RequestPath    string
-	Refresh        int
-	Watchdog       bool
+	ClientHostName   string
+	ClientIp         string
+	TargetNode       string
+	RawMode          bool
+	RequestPath      string
+	Refresh          int
+	Watchdog         bool
 	WatchdogInterval int64
 }
 

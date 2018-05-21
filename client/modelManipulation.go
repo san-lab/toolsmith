@@ -41,8 +41,7 @@ func (rpcClient *Client) DiscoverNetwork() error {
 	return nil
 }
 
-
-var threshold = time.Second*15
+var threshold = time.Second * 15
 var previousSample map[NodeID]int64
 var previousSampleTime time.Time
 
@@ -126,11 +125,11 @@ func (rpcClient *Client) collectNodeInfo(node *Node, insist bool) (err error) {
 
 	}
 	if err != nil { //no contact on any address
-		node.SetReachable ( false)
+		node.SetReachable(false)
 		return err
 	}
 	node.SetReachable(true)
-	node.prefAddress=prefaddr
+	node.prefAddress = prefaddr
 	var ok bool
 	node.JSONPeers, ok = callData.ParsedResult.(*PeerArray)
 	if !ok {
@@ -165,9 +164,9 @@ func (rpcClient *Client) collectNodeInfo(node *Node, insist bool) (err error) {
 
 func (n *Node) sampleBlockNo(rpc *Client) error {
 	callData := rpc.NewCallData("eth_blockNumber")
-	callData.Context.TargetNode=n.PrefAddress()
+	callData.Context.TargetNode = n.PrefAddress()
 	err := rpc.actualRpcCall(callData)
-	if err != nil || ! callData.Parsed {
+	if err != nil || !callData.Parsed {
 		return err
 	}
 	blockNumberSample, ok := callData.ParsedResult.(*BlockNumberSample)
@@ -186,13 +185,11 @@ func (n *Node) sampleBlockNo(rpc *Client) error {
 		n.progress = true
 	} else {
 		if time.Time(blockNumberSample.Sampled).Sub(time.Time(n.LastBlockNumberSample.Sampled)) > threshold {
-			n.progress=false
+			n.progress = false
 		}
 	}
 	return nil
 }
-
-
 
 //Collect  nodes Info recursing through peers
 //The effects are in the NetworkModel

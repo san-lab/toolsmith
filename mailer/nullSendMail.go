@@ -1,6 +1,4 @@
-
 // +build !awsmail
-
 
 package mailer
 
@@ -13,7 +11,7 @@ func (m *Mailer) SendEmail(to []*string, subject string, htmlBody string, plainT
 	}
 	log.Println("Dummy sendmail to: ", rec)
 	log.Println("subject: ", subject)
-	log.Println( "html: ", htmlBody)
+	log.Println("html: ", htmlBody)
 	log.Println("plain text: ", plainTextBody)
 	log.Println("----------")
 }

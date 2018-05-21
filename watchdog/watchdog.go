@@ -94,6 +94,7 @@ func (w *Watchdog) run() {
 }
 
 type notificationType string
+
 var escalate = notificationType("escalate")
 var deescalate = notificationType("deescalate")
 var none = notificationType("none")
@@ -105,7 +106,7 @@ func (w *Watchdog) shouldNotify(s *State) notificationType {
 	if w.state.isOK() && s.isDetected() {
 		return escalate
 	}
-	if s.isDetected() && w.state.severity=="AMBER" && s.severity=="RED" {
+	if s.isDetected() && w.state.severity == "AMBER" && s.severity == "RED" {
 		return escalate
 	}
 	return none
@@ -118,26 +119,25 @@ func (w *Watchdog) probe() {
 	progress, unreach, stuck := w.rpcClient.HeartBeat()
 
 	//Establish the new state
-	s:= State{}
+	s := State{}
 	if progress {
 		if unreach > 0 || stuck > 0 {
-			s.main=detected
-			s.severity="AMBER"
+			s.main = detected
+			s.severity = "AMBER"
 		} else {
-			s.main=okState
+			s.main = okState
 		}
 	} else {
-		s.main=detected
-		s.severity="RED"
+		s.main = detected
+		s.severity = "RED"
 	}
 
 	notif := w.shouldNotify(&s)
-	w.state=s
-	if notif==deescalate {
-			message := mailer.GetMailer().RenderOver(w.currentIssue)
-			mailer.GetMailer().SendEmail(w.RecipientsAWSStyle(), "Issue: "+w.currentIssue+">> Blochchain network back to normal", message, "it is over")
-			w.currentIssue = ""
-
+	w.state = s
+	if notif == deescalate {
+		message := mailer.GetMailer().RenderOver(w.currentIssue)
+		mailer.GetMailer().SendEmail(w.RecipientsAWSStyle(), "Issue: "+w.currentIssue+">> Blochchain network back to normal", message, "it is over")
+		w.currentIssue = ""
 
 	} else {
 		if notif == escalate {
@@ -178,7 +178,7 @@ func (w *Watchdog) generateIssueID() string {
 
 func (w *Watchdog) SetStatusOk() {
 	w.state.main = okState
-	w.state.severity =""
+	w.state.severity = ""
 }
 
 func (w *Watchdog) GetStatus() State {

@@ -1,20 +1,20 @@
 package httphandler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/san-lab/toolsmith/client"
 	"github.com/san-lab/toolsmith/templates"
+	"github.com/san-lab/toolsmith/watchdog"
 	"log"
 	"net/http"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
-	"github.com/san-lab/toolsmith/watchdog"
-	"context"
-	"strconv"
 )
 
 const toggle = "togglerawmode"
@@ -38,6 +38,9 @@ const emailparamname = "addr"
 const setwatchdoginterval = "setwatchdoginterval"
 const watchdogstatus = "watchdogstatus"
 const setwatchdogstatusok = "setwatchdogstatusok"
+const setpassword = "setpassword"
+
+const passwdFile = "http.passwd.json"
 
 //This is the glue between the http requests and the (hopefully) generic RPC client
 
@@ -46,7 +49,7 @@ type LilHttpHandler struct {
 	config    Config
 	rpcClient *client.Client
 	renderer  *templates.Renderer
-	watchdog *watchdog.Watchdog
+	watchdog  *watchdog.Watchdog
 }
 
 //Creating a naw http handler with its embedded rpc client and html renderer
@@ -57,6 +60,9 @@ func NewHttpHandler(c Config, ctx context.Context) (lhh *LilHttpHandler, err err
 	lhh.rpcClient, err = client.NewClient(c.EthHost, c.MockMode, c.DumpRPC)
 	if c.StartWatchdog {
 		lhh.watchdog = watchdog.StartWatchdog(lhh.rpcClient, ctx)
+	}
+	if c.BasicAuth {
+		lhh.initPasswords(ctx)
 	}
 	return lhh, err
 }
@@ -100,12 +106,22 @@ func (lhh *LilHttpHandler) Handler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type handler func(w http.ResponseWriter, r *http.Request)
+
+func (lhh *LilHttpHandler) GetHandler(withAuth bool) handler {
+	if withAuth {
+		return lhh.BasicAuthHandler
+	}
+	return lhh.Handler
+}
 
 func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request, comm string) {
 	var err error
 	cc := lhh.rpcClient.LocalInfo
 	cc.Watchdog = lhh.watchdog != nil
-	if cc.Watchdog {cc.WatchdogInterval=lhh.watchdog.GetInterval()}
+	if cc.Watchdog {
+		cc.WatchdogInterval = lhh.watchdog.GetInterval()
+	}
 	rdata := templates.RenderData{HeaderData: &cc, TemplateName: templates.Home, Client: lhh.rpcClient}
 	switch comm {
 	case discover:
@@ -142,7 +158,7 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 	case fullmesh:
 		lhh.rpcClient.FullMesh()
 		lhh.rpcClient.Rescan()
-		rdata.TemplateName="magic"
+		rdata.TemplateName = "magic"
 	case mockblock:
 		lhh.rpcClient.BlockAddress(r.Form["addr"][0])
 	case mockunblock:
@@ -163,16 +179,24 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 		rdata.TemplateName = "watchdogstatus"
 		rdata.BodyData = lhh.watchdog
 	case setwatchdoginterval:
-		i,err := strconv.ParseInt(r.Form.Get("interval"), 0, 0)
+		i, err := strconv.ParseInt(r.Form.Get("interval"), 0, 0)
 		if err == nil {
 			lhh.watchdog.SetInterval(i)
 		}
 	case setwatchdogstatusok:
 		lhh.watchdog.SetStatusOk()
 		fallthrough
-	case watchdogstatus :
-		rdata.BodyData=lhh.watchdog
-		rdata.TemplateName="watchdogstatus"
+	case watchdogstatus:
+		rdata.BodyData = lhh.watchdog
+		rdata.TemplateName = "watchdogstatus"
+	case setpassword: //TODO: Move to POST only, cast constans as constants
+		username, _, ok := r.BasicAuth()
+		if ok {
+			npassword, passSent := r.Form["pass"]
+			if passSent {
+				lhh.setPassword(username, npassword[0])
+			}
+		}
 	default:
 		err_msg := fmt.Sprintf("Unknown command: %s", comm)
 		rdata.Error = err_msg
@@ -258,9 +282,10 @@ func (lhh *LilHttpHandler) RpcCallAndRespond(w http.ResponseWriter, r *http.Requ
 }
 
 type Config struct {
-	EthHost  string
-	HttpPort string
-	MockMode bool
-	DumpRPC  bool
+	EthHost       string
+	HttpPort      string
+	MockMode      bool
+	DumpRPC       bool
 	StartWatchdog bool
+	BasicAuth     bool
 }

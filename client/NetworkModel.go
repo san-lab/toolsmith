@@ -28,7 +28,6 @@ func (bcn *BlockchainNet) FindOrAddNode(nn *Node) bool {
 	}
 }
 
-
 func NewBlockchainNet() *BlockchainNet {
 	bl := &BlockchainNet{}
 	bl.Nodes = map[NodeID]*Node{}
@@ -64,10 +63,10 @@ type Node struct {
 	TxpoolStatus          *TxpoolStatusSample
 	Peers                 map[string]*Node // ipaddress -> node
 	LastReach             MyTime
-	LastFail			 MyTime
-	issReachable           bool
-	prefAddress string
-	progress bool
+	LastFail              MyTime
+	issReachable          bool
+	prefAddress           string
+	progress              bool
 }
 
 func (n *Node) IsStuck() bool {

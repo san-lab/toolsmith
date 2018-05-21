@@ -18,7 +18,6 @@ func NewRenderer() *Renderer {
 	return r
 }
 
-
 const Raw = "raw"
 const Home = "home"
 const Network = "network"

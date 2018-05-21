@@ -13,7 +13,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
 )
 
 //A rest api client, wrapping an http client
@@ -208,11 +207,15 @@ func CamelCaseKnownCommand(command *string) bool {
 func (rpcClient *Client) FullMesh() error {
 	for k1, n1 := range rpcClient.NetModel.Nodes {
 		for k2, n2 := range rpcClient.NetModel.Nodes {
-			if k1==k2 {continue}
+			if k1 == k2 {
+				continue
+			}
 			_, hasalready := n1.PeerSeenAs(n2)
-			if hasalready {continue}
+			if hasalready {
+				continue
+			}
 			for addr := range n2.KnownAddresses {
-				enode := "enode://"+string(n2.ID)+"@" + addr + ":30304"
+				enode := "enode://" + string(n2.ID) + "@" + addr + ":30304"
 				callData := rpcClient.NewCallData("admin_addPeer")
 				callData.Context.TargetNode = n1.PrefAddress()
 				callData.Command.Params = []interface{}{enode}
