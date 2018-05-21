@@ -133,14 +133,16 @@ func (w *Watchdog) probe() {
 	}
 
 	notif := w.shouldNotify(&s)
-	w.state = s
 	if notif == deescalate {
 		message := mailer.GetMailer().RenderOver(w.currentIssue)
 		mailer.GetMailer().SendEmail(w.RecipientsAWSStyle(), "Issue: "+w.currentIssue+">> Blochchain network back to normal", message, "it is over")
 		w.currentIssue = ""
+		w.state.main = okState
+		w.state.severity = ""
 
 	} else {
 		if notif == escalate {
+			w.state = s
 			w.currentIssue = w.generateIssueID()
 
 			wAddress := w.rpcClient.LocalInfo.ClientIp
@@ -166,7 +168,7 @@ func (w *Watchdog) probe() {
 			mailer.GetMailer().LoadTemplate() //Debug line...
 			message := mailer.GetMailer().RenderAlert(data)
 			mailer.GetMailer().SendEmail(w.RecipientsAWSStyle(), "Something wrong with Blockchain Net", message, "alert!")
-			s.main = notified
+			w.state.main = notified
 		}
 	}
 
