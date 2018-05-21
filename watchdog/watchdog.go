@@ -137,7 +137,7 @@ func (w *Watchdog) probe() {
 			message := mailer.GetMailer().RenderOver(w.currentIssue)
 			mailer.GetMailer().SendEmail(w.RecipientsAWSStyle(), "Issue: "+w.currentIssue+">> Blochchain network back to normal", message, "it is over")
 			w.currentIssue = ""
-			
+
 
 	} else {
 		if notif == escalate {
