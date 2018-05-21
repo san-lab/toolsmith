@@ -29,7 +29,7 @@ var sevRed severity = "RED"
 var okState = "OK"
 var detected = "DETECTED"
 var notified = "NOTIFIED"
-var reset = "RESET"
+var stateReset = "RESET"
 
 func (s *State) isOK() bool {
 	return s.main == okState
@@ -79,7 +79,7 @@ func StartWatchdog(rpcClient *client.Client, ctx context.Context) *Watchdog {
 	instance.ticker = time.NewTicker(instance.config.ProbeInterval)
 	instance.wg, _ = ctx.Value("WaitGroup").(*sync.WaitGroup)
 	instance.wg.Add(1)
-	instance.state = State{main: reset}
+	instance.state = State{main: stateReset}
 	go instance.run()
 	return instance
 }
@@ -121,7 +121,7 @@ func (w *Watchdog) shouldNotify(s *State) notificationType {
 		w.state.severity = sevRed
 		return escalate
 	}
-	if w.state.main == reset && s.isOK() {
+	if w.state.main == stateReset && s.isOK() {
 		w.state = *s
 	}
 	return none
