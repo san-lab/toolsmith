@@ -18,8 +18,13 @@ const defaultProbeInterval = time.Second * 5
 
 type State struct {
 	main     string
-	severity string
+	severity severity
 }
+
+type severity string
+
+var sevAmber severity = "AMBER"
+var sevRed severity = "RED"
 
 var okState = "OK"
 var detected = "DETECTED"
@@ -99,15 +104,25 @@ var escalate = notificationType("escalate")
 var deescalate = notificationType("deescalate")
 var none = notificationType("none")
 
+//Decides if any action is needed (escalate/deescalate/none)
+//Also sets the new state of the watchdog
+//Only the detected->notified transition happens outside of this method
 func (w *Watchdog) shouldNotify(s *State) notificationType {
+
 	if w.state.isNotified() && s.isOK() {
+		w.state = *s
 		return deescalate
 	}
 	if w.state.isOK() && s.isDetected() {
+		w.state = *s
 		return escalate
 	}
-	if s.isDetected() && w.state.severity == "AMBER" && s.severity == "RED" {
+	if s.isDetected() && w.state.severity == sevAmber && s.severity == sevRed {
+		w.state.severity = sevRed
 		return escalate
+	}
+	if w.state.main == reset && s.isOK() {
+		w.state = *s
 	}
 	return none
 }
@@ -123,13 +138,13 @@ func (w *Watchdog) probe() {
 	if progress {
 		if unreach > 0 || stuck > 0 {
 			s.main = detected
-			s.severity = "AMBER"
+			s.severity = sevAmber
 		} else {
 			s.main = okState
 		}
 	} else {
 		s.main = detected
-		s.severity = "RED"
+		s.severity = sevRed
 	}
 
 	notif := w.shouldNotify(&s)
@@ -137,12 +152,8 @@ func (w *Watchdog) probe() {
 		message := mailer.GetMailer().RenderOver(w.currentIssue)
 		mailer.GetMailer().SendEmail(w.RecipientsAWSStyle(), "Issue: "+w.currentIssue+">> Blochchain network back to normal", message, "it is over")
 		w.currentIssue = ""
-		w.state.main = okState
-		w.state.severity = ""
-
 	} else {
 		if notif == escalate {
-			w.state = s
 			w.currentIssue = w.generateIssueID()
 
 			wAddress := w.rpcClient.LocalInfo.ClientIp
@@ -158,7 +169,7 @@ func (w *Watchdog) probe() {
 			}
 			var data = struct {
 				IssueID          string
-				Severity         string
+				Severity         severity
 				WatchdogAddress  string
 				UnreachableNodes []string
 				StuckNodes       []string
@@ -167,7 +178,7 @@ func (w *Watchdog) probe() {
 			}
 			mailer.GetMailer().LoadTemplate() //Debug line...
 			message := mailer.GetMailer().RenderAlert(data)
-			mailer.GetMailer().SendEmail(w.RecipientsAWSStyle(), "Something wrong with Blockchain Net", message, "alert!")
+			mailer.GetMailer().SendEmail(w.RecipientsAWSStyle(), "Something wrong with Blockchain Net. Issue: "+w.currentIssue, message, "alert!")
 			w.state.main = notified
 		}
 	}
