@@ -34,11 +34,14 @@ const fullmesh = "fullmesh"
 const addrecipient = "addrecipient"
 const blockrecipient = "blockrecipient"
 const removerecipient = "removerecipient"
-const emailparamname = "addr"
+const emailparamname = "addr" //param name
 const setwatchdoginterval = "setwatchdoginterval"
 const watchdogstatus = "watchdogstatus"
 const setwatchdogstatusok = "setwatchdogstatusok"
+const interval = "interval" //param name
 const setpassword = "setpassword"
+const setthreshold = "setthreshold"
+const threshold = "threshold" // param name
 
 const passwdFile = "http.passwd.json"
 
@@ -179,9 +182,14 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 		rdata.TemplateName = "watchdogstatus"
 		rdata.BodyData = lhh.watchdog
 	case setwatchdoginterval:
-		i, err := strconv.ParseInt(r.Form.Get("interval"), 0, 0)
+		i, err := strconv.ParseInt(r.Form.Get(interval), 0, 0)
 		if err == nil {
 			lhh.watchdog.SetInterval(i)
+		}
+	case setthreshold:
+		i, err := strconv.ParseInt(r.Form.Get(threshold), 0, 0)
+		if err == nil {
+			lhh.watchdog.SetThreshold(i)
 		}
 	case setwatchdogstatusok:
 		lhh.watchdog.SetStatusOk()

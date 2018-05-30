@@ -4,7 +4,8 @@
 {{if .HeaderData.Watchdog}}
     <p>Watchdog Status:  </p>
      State: {{.BodyData.GetStatus}} </br>
-     Interval: {{.BodyData.GetInterval}} </br>
+     Probing interval: {{.BodyData.GetInterval}} </br>
+     Block progress threshold: {{.BodyData.GetThreshold}}
 </p>
     {{with .BodyData.GetRecipients}}
     Alert address list: </br>

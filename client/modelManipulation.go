@@ -41,7 +41,7 @@ func (rpcClient *Client) DiscoverNetwork() error {
 	return nil
 }
 
-var threshold = time.Second * 15
+var Threshold = time.Second * 15
 var previousSample map[NodeID]int64
 var previousSampleTime time.Time
 
@@ -184,7 +184,7 @@ func (n *Node) sampleBlockNo(rpc *Client) error {
 		n.LastBlockNumberSample = blockNumberSample
 		n.progress = true
 	} else {
-		if time.Time(blockNumberSample.Sampled).Sub(time.Time(n.LastBlockNumberSample.Sampled)) > threshold {
+		if time.Time(blockNumberSample.Sampled).Sub(time.Time(n.LastBlockNumberSample.Sampled)) > Threshold {
 			n.progress = false
 		}
 	}

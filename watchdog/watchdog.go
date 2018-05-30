@@ -55,6 +55,7 @@ type Watchdog struct {
 type Config struct {
 	Recipients    map[string]bool
 	ProbeInterval time.Duration
+	BlockThreshold time.Duration
 }
 
 var started uint32
@@ -75,6 +76,12 @@ func StartWatchdog(rpcClient *client.Client, ctx context.Context) *Watchdog {
 	if instance.config.ProbeInterval == 0 {
 		instance.config.ProbeInterval = defaultProbeInterval
 	}
+	if instance.config.BlockThreshold == 0 {
+		instance.config.BlockThreshold = client.Threshold
+	} else {
+		client.Threshold = instance.config.BlockThreshold
+	}
+
 	instance.execContext = ctx
 	instance.ticker = time.NewTicker(instance.config.ProbeInterval)
 	instance.wg, _ = ctx.Value("WaitGroup").(*sync.WaitGroup)
@@ -208,6 +215,17 @@ func (w *Watchdog) SetInterval(interval int64) {
 func (w *Watchdog) GetInterval() int64 {
 	return int64(w.config.ProbeInterval / time.Second)
 
+}
+
+//Set the max time (in seconds) for a new block to be mined/approved
+func (w *Watchdog) SetThreshold(interval int64) {
+	client.Threshold = time.Second*time.Duration(interval)
+	w.config.BlockThreshold = client.Threshold
+}
+
+//Get the max time (in seconds) for a new block to be mined/approved
+func (w *Watchdog) GetThreshold()  int64 {
+  return int64(client.Threshold/time.Second)
 }
 
 //List active recipients in aws-sdk friendly format
