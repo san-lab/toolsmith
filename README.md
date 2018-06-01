@@ -29,7 +29,7 @@ There is a few flags to pass to the executeble:
    Toolsmith has modular structure. The core is the RPC client. It knows valid Ethereum/Geth RPC calls and can marshal/unmarshal the corresponding JSON messages. The RPC client maintains internally a model of the (so-far-discovered) network in order to be able to diagnose abnormal situations.
    
    HttpHandler
-   HttpHandler provides an HTML frontend to tinteract with the RPC Client. It tries to interpret the request URI as an \<\<nodeIP\>\>/\<\<rpcCommand\>\> followed by potional parameters ?par1=\<\<value1\>\>&par2=\<\<value2\>\>&... The parameter names have to be of the form `par\d$`. The parameter values (if any) will be included in the RPC call in the order determined by the trailing numper of the parameter name.
+   HttpHandler provides an HTML frontend to tinteract with the RPC Client. It tries to interpret the request URI as an \<\<nodeIP\>\>/\<\<rpcCommand\>\> followed by potional parameters ?par1=\<\<value1\>\>&par2=\<\<value2\>\>&... The parameter names have to be of the form `par\d$`. The parameter values (if any) will be included in the RPC call in the order determined by the trailing number of the parameter name.
   
 If the URI cannot be interpreted as an RPC call, it will be matched against the HttpHandler-specific commands:
 ```
