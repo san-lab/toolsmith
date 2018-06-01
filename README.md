@@ -10,6 +10,7 @@ The design principles have been:
 
 Toolsmith is easy to install. Actually no install is needed, just compile/unzip and run.
 There is a few flags to pass to the executeble:
+´´´
   -dumpRPC
     	should dump RPC responses to files
   -ethRPCAddress string
@@ -22,6 +23,6 @@ There is a few flags to pass to the executeble:
     	should a watchdog  be started
   -withAuth
     	should Basic Authentication be enabled (default true)
-      
+   ´´´   
       
 
