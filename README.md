@@ -31,8 +31,9 @@ There is a few flags to pass to the executeble:
  1) HttpHandler
  
    HttpHandler provides an HTML frontend to tinteract with the RPC Client.
-   The BasicAuthentication is enabled by default, with the default user/password being "sanlab"/"sanlab28660"
-   It tries to interpret the request URI as an \<\<nodeIP\>\>/\<\<rpcCommand\>\> followed by potional parameters ?par1=\<\<value1\>\>&par2=\<\<value2\>\>&... The parameter names have to be of the form `par\d$`. The parameter values (if any) will be included in the RPC call in the order determined by the trailing number of the parameter name.
+   The BasicAuthentication is enabled by default, with the default user/password being "sanlab"/"sanlab28660".
+   
+   The HttpHandler tries to interpret the request's URI as an \<\<nodeIP\>\>/\<\<rpcCommand\>\> followed by potional parameters ?par1=\<\<value1\>\>&par2=\<\<value2\>\>&... The parameter names have to be of the form `par\d$`. The parameter values (if any) will be included in the RPC call in the order determined by the trailing number of the parameter name.
   
 If the URI cannot be interpreted as an RPC call, it will be matched against the HttpHandler-specific commands:
 ```
