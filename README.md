@@ -26,7 +26,12 @@ There is a few flags to pass to the executeble:
    ```  
    The Toolsmith strars with no knowledge of the network apart from the RPC access point (default: "localhost:8545"), so you may need to execute "Rebuild" in order to initialize. Toolsmith will recursively ask nodes for their peers and build its internal network model.
    
-   Toolsmith has modular structure. The core is the RPC client. It knows valid Ethereum/Geth RPC calls and can marshal/unmarshal the corresponding JSON messages. The RPC client maintains internally a model of the (so-far-discovered) network in order to be able to diagnose abnormal situations.
+   Toolsmith has modular structure:
+   
+  ![alt text](https://github.com/san-lab/toolsmith/blob/master/ToolsmithStructure.jpg?raw=true "Toolsmish program block structure") 
+   
+   The core is the RPC client:
+         It knows valid Ethereum/Geth RPC calls and can marshal/unmarshal the corresponding JSON messages. The RPC client maintains internally a model of the (so-far-discovered) network in order to be able to diagnose abnormal situations.
    
  1) HttpHandler
  
