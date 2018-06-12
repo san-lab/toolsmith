@@ -1,0 +1,135 @@
+{{define "nodes"}}
+        var nodes = new vis.DataSet(
+        {{.VisjsNodes}}
+        );
+{{end}}
+
+{{define "edges"}}
+        var edges = new vis.DataSet(
+        {{.VisjsEdges}}
+        );
+{{end}}
+
+{{define "magic"}}
+{{template "header" .HeaderData}}
+<!doctype html>
+<html>
+<head>
+    <title>Network | Basic usage</title>
+
+    <script type="text/javascript" src="/static/vis.js"></script>
+    <link href="/static/vis-network.min.css" rel="stylesheet" type="text/css" />
+
+    <style type="text/css">
+        #mynetwork {
+            width: 100%;
+            height: 100%;
+            border: 1px solid lightgray;
+        }
+    </style>
+</head>
+<body>
+
+
+<table id="container"><tr>
+    <td> <div id="mynetwork" style="height: 400px; width: 600px; float: left" ></div>
+        <div id="stat"  >
+           <button type="button" onclick="circle(nodes)">Cirlce graph</button></div>
+    </td>
+    <td>
+        <div id="textpane" style="height: 400px; width: 600px; float: left; padding-top: 20px; padding-left: 30px;" >
+            {{template "nodelist" .}}
+        </div></td>
+</tr></table>
+
+<script type="text/javascript">
+
+    var refIntervalId = setInterval(loadNodeList, 3000); // milliseconds
+
+    // create an array with nodes
+    {{template "nodes" .Client.NetModel}}
+
+    // create an array with edges
+    {{template "edges" .Client.NetModel}}
+
+    // create a network
+    var container = document.getElementById('mynetwork');
+    edges.font = {align: 'bottom'};
+    var data = {
+        nodes: nodes,
+        edges: edges
+    };
+    var options = {layout:{randomSeed:5}, physics:{enabled: false},interaction:{hover:true}};
+
+    var network = new vis.Network(container, data, options);
+
+    var ncount = nodes.length;
+    function circle (nodes) {
+        var ids = nodes.getIds();
+        var r = 160;
+        var aspect = 1.2;
+        var step = 2 * Math.PI / ncount;
+        for (var i in ids) {
+            var x0 = aspect * r * Math.cos(i * step);
+            var y0 = r * Math.sin(i * step) - 25;
+            network.moveNode(ids[i], x0, y0);
+        }
+    }
+
+    //circle(nodes);
+
+    network.on("hoverEdge", function(params){
+        var e = edges.get(params.edge);
+        e.font={size:12};
+        edges.update(e);
+
+    });
+
+    network.on("blurEdge", function(params){
+        var e = edges.get(params.edge);
+        e.font={size:0};
+        edges.update(e);
+    });
+
+    network.on("doubleClick", function(params) {
+            var nodeId=params.nodes[0];
+            var node = nodes.get(nodeId);
+            node.x=0;
+            node.y=0;
+            nodes.update(node);
+        }
+    );
+
+    function loadNodeList() {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function() {
+            if (this.readyState == 4 && this.status == 200) {
+                document.getElementById("textpane").innerHTML =
+                    this.responseText;
+            }
+        };
+        xhttp.open("GET", "rawnodes", true);
+        xhttp.send();
+    }
+    function loadNodes() {
+        var xhttp = new XMLHttpRequest();
+        xhttp.responseType = 'json';
+        xhttp.onreadystatechange = function() {
+            if (this.readyState == 4 && this.status == 200) {
+                document.getElementById("stat").innerHTML =
+                    JSON.stringify(this.response);
+            }
+        };
+        xhttp.open("GET", "jsonnodes", true);
+        xhttp.send();
+    }
+
+
+</script>
+
+</body>
+</html>
+
+
+{{template "footer"}}
+{{end}}
