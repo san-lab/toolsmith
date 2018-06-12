@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"html/template"
 	"log"
+	"sort"
 )
 
 func (bcn *BlockchainNet) VisjsNodes() template.JS {
@@ -17,8 +18,16 @@ func (bcn *BlockchainNet) VisjsNodes() template.JS {
 
 func (bcn *BlockchainNet) GetJsonNodes() []Visnode {
 	var vn []Visnode
-	for _, nd := range bcn.Nodes {
-		vi := Visnode{Id: nd.ID, Label: nd.ShortName(), Image: "/static/ethereum_32x32.png", Shape: "image"}
+
+	//We sort the keys to have a deterministic order
+	var keys []string
+	for id := range bcn.Nodes {
+		keys = append(keys, string(id))
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		nd := bcn.Nodes[NodeID(key)]
+		vi := Visnode{Id: nd.ID, Label: nd.ShortName, Image: "/static/ethereum_32x32.png", Shape: "image"}
 		if nd.IsReachable() {
 			vi.Image = "/static/ethereum-full_32x32.png"
 		}

@@ -16,17 +16,6 @@ type BlockchainNet struct {
 
 }
 
-func (bcn *BlockchainNet) FindOrAddNode(nn *Node) bool {
-	//defer bcn.listReaches()
-	on, has := bcn.Nodes[nn.ID]
-	if has {
-		*nn = *on
-		return true
-	} else {
-		bcn.Nodes[nn.ID] = nn
-		return false
-	}
-}
 
 func NewBlockchainNet() *BlockchainNet {
 	bl := &BlockchainNet{}
@@ -54,6 +43,7 @@ type NodeID string
 type Node struct {
 	Status                NodeStatus
 	ID                    NodeID
+	Enode                 string
 	ThisNodeInfo          NodeInfo // should not be needed
 	Name                  string
 	KnownAddresses        map[string]bool
@@ -67,6 +57,9 @@ type Node struct {
 	issReachable          bool
 	prefAddress           string
 	progress              bool
+	ClientVersion         string
+	ShortName             string
+	isStub                bool
 }
 
 func (n *Node) IsStuck() bool {
@@ -91,23 +84,30 @@ func (n *Node) PeerSeenAs(peer *Node) (string, bool) {
 	return "invisible", false
 }
 
-//Extract the short name from the NodeAddress name
+// Geth specific
+// Extract the short name from the NodeAddress name
 // assuming the name is of the form: "Geth/miner3/v1.7.2-stable/linux-amd64/go1.9.2"
-func (n Node) ShortName() string {
+func (n Node) getGethShortName() (string, bool) {
+	if !n.IsGeth() {
+		return "", false
+	}
 	parts := strings.Split(n.Name, "/")
 	if len(parts) > 1 {
-		return parts[1]
+		return parts[1], true
+
 	}
-	return n.Name
+	return "unknown", false
 }
 
 //This is a stub. The address does not include the rpc port
+//The bool flag is true if an actual address is returned, false otherwise
 func (n Node) PrefAddress() string {
 	if len(n.prefAddress) > 0 {
 		return n.prefAddress
 	}
 	for a, ok := range n.KnownAddresses {
 		if ok {
+			n.prefAddress = a
 			return a
 		}
 	}
@@ -115,15 +115,21 @@ func (n Node) PrefAddress() string {
 }
 
 func (n Node) IDHead(i int) string {
+	if len(n.ID) < i {
+		return ""
+	}
 	return string(n.ID)[:i]
 }
 
 func (n Node) IDTail(i int) string {
+	if len(n.ID) < i {
+		return ""
+	}
 	return string(n.ID)[len(n.ID)-i:]
 }
 
 func (n *Node) SetReachable(is bool) {
-	log.Printf("Setting %s as reachable=%v\n", n.ShortName(), is)
+	log.Printf("Setting %s as reachable=%v\n", n.ShortName, is)
 	n.issReachable = is
 	if is {
 		n.LastReach = MyTime(time.Now())
@@ -136,26 +142,45 @@ func (n *Node) IsReachable() bool {
 	return n.issReachable
 }
 
+func (n *Node) IsParity() bool {
+	return strings.HasPrefix(n.ClientVersion, "Parity")
+}
+
+func (n *Node) IsGeth() bool {
+	return strings.HasPrefix(n.ClientVersion, "Geth")
+}
+
+func (n *Node) ClientType() string {
+	return strings.Split(n.ClientVersion, "/")[0]
+}
+
 func NewNode() *Node {
 	n := &Node{}
 	n.KnownAddresses = map[string]bool{}
 	n.Peers = map[string]*Node{}
+	n.isStub = true
 	return n
 }
 
-func NodeFromNodeInfo(ni *NodeInfo) *Node {
-	n := NewNode()
+
+//Geth specific
+func FillNodeFromNodeInfo(n *Node, ni *NodeInfo) {
 	n.ID = NodeID(ni.ID)
 	n.ThisNodeInfo = *ni
 	n.Name = ni.Name
+	n.Enode = ni.Enode
+	n.ShortName, _ = n.getGethShortName()
 	n.SetReachable(true) //This is based on the assumption that the node info has been just obtained
-	return n
+	return
 }
 
-func NodeFromPeerInfo(pi *PeerInfo) *Node {
-	n := NewNode()
+func NodeFromPeerInfo(n *Node,pi *PeerInfo) *Node {
+	if n== nil {
+		n = NewNode()
+	}
 	n.ID = NodeID(pi.ID)
 	n.Name = pi.Name
+	n.ShortName, _ = n.getGethShortName()
 	n.KnownAddresses = map[string]bool{}
 	return n
 }

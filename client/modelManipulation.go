@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -17,27 +18,150 @@ func (rpcClient *Client) Rescan() error {
 	return nil
 }
 
-func (rpcClient *Client) DiscoverNetwork() error {
-	rpcClient.UnreachableAddresses = map[string]MyTime{}
-	rpcClient.SetNetworkId()
+func (rpcClient *Client) collectNodeInfo(node *Node, flag bool) error {
+	if node.isStub {
+		err := rpcClient.collectStubNodeInfo(node)
+		if err != nil {
+			return err
+		}
+	}
+	if node.IsGeth() {
+		return rpcClient.collectGethNodeInfo(node, flag)
+	} else if node.IsParity() {
+		return rpcClient.collectParityNodeInfo(node)
+	} else {
+		return errors.New("unsupported Eth client")
+	}
+}
+
+func (rpcClient *Client) collectStubNodeInfo(stub *Node) (err error) {
+	addr := stub.PrefAddress()
+	if len(addr) == 0 {
+		err = errors.New("no known address for the node, exiting")
+		log.Println(err)
+		return err
+	}
+
+	data := rpcClient.NewCallData("web3_clientVersion")
+	data.Context.TargetNode = addr
+	err = rpcClient.actualRpcCall(data)
+	if err != nil {
+		return err
+	}
+	cvr, ok := data.ParsedResult.(*StringResult)
+	if !ok {
+		err = errors.New("could not parse the ClientVersion of the root node")
+		return err
+	}
+	stub.SetReachable(true)
+	stub.ClientVersion = string(*cvr)
+	return nil
+}
+
+func (rpcClient *Client) collectGethNodeInfo(node *Node, fromScratch bool) error {
 	data := rpcClient.NewCallData("admin_nodeInfo")
-	data.Context.TargetNode = rpcClient.DefaultEthNode
+	data.Context.TargetNode = node.PrefAddress()
+	if fromScratch {
+
+		err := rpcClient.actualRpcCall(data)
+		if err != nil {
+			return err
+		}
+		ni, ok := data.ParsedResult.(*NodeInfo)
+		if !ok {
+			log.Printf("expected %T got %T", ni, data.ParsedResult)
+			return errors.New("not ok parsing the root node info")
+		}
+		FillNodeFromNodeInfo(node, ni)
+		node.isStub = false
+	}
+	//Get the txpool status
+	data.Command.Method = "txpool_status"
+	data.ParsedResult = nil
+	err := rpcClient.actualRpcCall(data)
+	if err != nil || !data.Parsed {
+		return err
+	}
+	node.TxpoolStatus = data.ParsedResult.(*TxpoolStatusSample)
+
+	//Get the BlockNumber
+	err = node.sampleBlockNo(rpcClient)
+	return err
+}
+
+func (rpcClient *Client) collectParityNodeInfo(stub *Node) error {
+	data := rpcClient.NewCallData("parity_nodeName")
+	data.Context.TargetNode = stub.PrefAddress()
 	err := rpcClient.actualRpcCall(data)
 	if err != nil {
 		return err
 	}
-	ni, ok := data.ParsedResult.(*NodeInfo)
-	if !ok {
-		log.Printf("expected %T got %T", ni, data.ParsedResult)
-		return errors.New("Not ok parsing the root node info")
+	stub.ShortName = string(*data.ParsedResult.(*StringResult))
+	data.Command.Method = "parity_enode"
+	err = rpcClient.actualRpcCall(data)
+	if err != nil {
+		return err
 	}
-	//rpcClient.NetModel.Nodes = map[NodeID]*Node{}
-	rootnode := NodeFromNodeInfo(ni)
-	rootnode.KnownAddresses[rpcClient.DefaultEthNode] = true
-	rpcClient.NetModel.Nodes[rootnode.ID] = rootnode
-	rpcClient.NetModel.AccessNode = rootnode
-	rpcClient.VisitedNodes = map[NodeID]MyTime{} //Boy this is ugly!
-	rpcClient.collectNodeInfoRecursively(rootnode)
+	stub.Enode = string(*data.ParsedResult.(*StringResult)) //TODO: parsing errors unhandled!
+	stub.ID = NodeID(strings.Split(strings.Split(stub.Enode, "//")[1], "@")[0])
+	stub.Name = stub.ShortName + "/" + stub.Enode
+	stub.isStub = false
+	//TODO: this is fitting Parity info into Geth structures - ugly
+	data.Command.Method="parity_pendingTransactions"
+	err = rpcClient.actualRpcCall(data)
+	if err != nil {
+		return err
+	}
+	txs, ok := data.ParsedResult.(*ParityPendingTxs)
+	if ! ok {
+		return errors.New("could not cast to parity_pendingTransactions while getting node info")
+	}
+	stub.TxpoolStatus = &TxpoolStatusSample{ Pending:HexString(txs.Len()), Queued: HexString(-1)}
+	stub.TxpoolStatus.stamp()
+	return err
+}
+
+func (rpcClient *Client) DiscoverNetwork() error {
+	rpcClient.UnreachableAddresses = map[string]MyTime{}
+	rpcClient.NetModel.Nodes = map[NodeID]*Node{}
+	rpcClient.SetNetworkId()
+	stub := NewNode()
+	stub.KnownAddresses[rpcClient.DefaultEthNodeAddr] = true
+	rpcClient.NetModel.AccessNode = stub
+	err := rpcClient.collectNodeInfo(stub, true)
+	if err != nil {
+		return err
+	}
+	rpcClient.NetModel.Nodes[stub.ID] = stub
+	rpcClient.collectNodeInfoRecursively(stub)
+	return nil
+}
+
+//Collect  nodes Info recursing through peers
+//The effects are in the NetworkModel
+func (rpcClient *Client) collectNodeInfoRecursively(parent *Node) error {
+
+	err := rpcClient.collectNodePeerInfo(parent, true)
+	if err != nil {
+		return err
+	}
+
+	for _, peernode := range parent.Peers {
+		if _, visited := rpcClient.NetModel.Nodes[peernode.ID]; visited {
+			continue
+		}
+		rpcClient.NetModel.Nodes[peernode.ID] = peernode
+		err = rpcClient.collectNodeInfo(peernode, false)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		err = rpcClient.collectNodeInfoRecursively(peernode)
+		if err != nil {
+			log.Println(err)
+		}
+	}
 	return nil
 }
 
@@ -68,12 +192,12 @@ func (rpcClient *Client) Bloop() (blocks map[string]interface{}, err error) {
 	for _, node := range rpcClient.NetModel.Nodes {
 		err := node.sampleBlockNo(rpcClient)
 		if err != nil {
-			blocks[node.ShortName()] = "UNREACHABLE!!!"
+			blocks[node.ShortName] = "UNREACHABLE!!!"
 			fmt.Println(err)
 			continue
 			//return nil, err
 		}
-		blocks[node.ShortName()] = *node.LastBlockNumberSample
+		blocks[node.ShortName] = *node.LastBlockNumberSample
 
 	}
 	return
@@ -83,7 +207,7 @@ func (rpcClient *Client) SetNetworkId() error {
 	//First find out the network ID, if not known
 	if rpcClient.NetModel.NetworkID == "" {
 		callData := rpcClient.NewCallData("net_version")
-		callData.Context.TargetNode = rpcClient.DefaultEthNode
+		callData.Context.TargetNode = rpcClient.DefaultEthNodeAddr
 		err := rpcClient.actualRpcCall(callData)
 		if err != nil {
 			return err
@@ -94,72 +218,58 @@ func (rpcClient *Client) SetNetworkId() error {
 	return nil
 }
 
-//Update a  node Info, includig peers, txpool and block number. If "insist", the method will retry calling on previously unreachable addresses
-func (rpcClient *Client) collectNodeInfo(node *Node, insist bool) (err error) {
-	//log.Println("Collecting node info on " + node.ShortName() +"/" + node.IDHead(6))
-	if len(node.ID) == 0 {
-		return errors.New("cannot get info of a blank node")
-	}
-	rpcClient.NetModel.FindOrAddNode(node)
-	callData := rpcClient.NewCallData("admin_peers")
-	var prefaddr string
-	err = errors.New(fmt.Sprintf("No known/working address for %s", node.ShortName()))
-	for address := range node.KnownAddresses { //Dial on all numbers
-		if _, ok := rpcClient.UnreachableAddresses[address]; ok {
-			log.Println("Hit an unrachable address: " + address)
-			if insist {
-				delete(rpcClient.UnreachableAddresses, address)
-			} else {
-				continue
-			}
 
-		}
-		callData.Context.TargetNode = address
-		err = rpcClient.actualRpcCall(callData)
-		if err == nil {
-			prefaddr = address
-			node.SetReachable(true)
-			break
-		}
-		rpcClient.UnreachableAddresses[address] = MyTime(time.Now())
+func (rpcClient *Client) collectNodePeerInfo(node *Node, rebuild bool) (err error) {
 
-	}
-	if err != nil { //no contact on any address
-		node.SetReachable(false)
-		return err
-	}
-	node.SetReachable(true)
-	node.prefAddress = prefaddr
-	var ok bool
-	node.JSONPeers, ok = callData.ParsedResult.(*PeerArray)
-	if !ok {
-		return errors.New("Could not parse the result of JSONPeers of " + prefaddr)
-	}
-	node.Peers = map[string]*Node{}
-	for _, pi := range *node.JSONPeers {
-		pn, exists := rpcClient.NetModel.Nodes[NodeID(pi.ID)]
-		if !exists {
-			pn = NodeFromPeerInfo(&pi)
-			rpcClient.NetModel.FindOrAddNode(pn)
+	var method string
 
-		}
-		pn.KnownAddresses[pi.RemoteHostMachine()] = true
-		//log.Printf("Adding %s as a peer of %s\n", pn.ShortName(), node.ShortName())
-		node.Peers[pi.RemoteHostMachine()] = pn
+	if node.IsGeth() {
+		method = "admin_peers"
+	} else if node.IsParity() {
+		method = "parity_netPeers"
+	} else {
+		return errors.New("unsupported Client version: " + node.ClientVersion)
 	}
-	//Get the txpool status
-	callData.Command.Method = "txpool_status"
-	callData.ParsedResult = nil
+	prefaddr := node.PrefAddress()
+	if len(prefaddr) == 0 {
+		err = errors.New("cannot find peers, no known address for the node " + node.ShortName)
+		return
+	}
+	callData := rpcClient.NewCallData(method)
+	callData.Context.TargetNode = prefaddr
 	err = rpcClient.actualRpcCall(callData)
 	if err != nil || !callData.Parsed {
 		return err
 	}
-	node.TxpoolStatus = callData.ParsedResult.(*TxpoolStatusSample)
 
-	//Get the BlockNumber
-	err = node.sampleBlockNo(rpcClient)
+	if node.IsGeth() {
+		var ok bool
+		node.JSONPeers, ok = callData.ParsedResult.(*PeerArray)
+		if !ok {
+			return errors.New("Could not parse the result of JSONPeers of " + node.ShortName + " at " + prefaddr)
+		}
+	} else if node.IsParity() {
+		ppeersResp, ok := callData.ParsedResult.(*ParityPeerInfo)
+		if !ok {
+			return errors.New("Could not parse the result of JSONPeers of " + node.ShortName + " at " + prefaddr)
+		}
+		node.JSONPeers = &ppeersResp.Peers
+	}
+	node.Peers = map[string]*Node{}
+	for _, pi := range *node.JSONPeers {
+		var pn *Node
+		var known bool
+		if pn, known = rpcClient.NetModel.Nodes[NodeID(pi.ID)]; known && !rebuild {
+			NodeFromPeerInfo(pn, &pi)
+		} else {
+			pn = NodeFromPeerInfo(nil, &pi)
+		}
+		pn.KnownAddresses[pi.RemoteHostMachine()] = true
+		node.Peers[pi.RemoteHostMachine()] = pn
+		//log.Printf("Adding %s as a peer of %s\n", pn.ShortName(), node.ShortName())
 
-	return err
+	}
+	return nil
 }
 
 func (n *Node) sampleBlockNo(rpc *Client) error {
@@ -171,7 +281,7 @@ func (n *Node) sampleBlockNo(rpc *Client) error {
 	}
 	blockNumberSample, ok := callData.ParsedResult.(*BlockNumberSample)
 	if !ok {
-		err = errors.New("Type assertion failed")
+		err = errors.New("type assertion failed")
 		log.Println(err)
 		return err
 	}
@@ -186,23 +296,6 @@ func (n *Node) sampleBlockNo(rpc *Client) error {
 	} else {
 		if time.Time(blockNumberSample.Sampled).Sub(time.Time(n.LastBlockNumberSample.Sampled)) > Threshold {
 			n.progress = false
-		}
-	}
-	return nil
-}
-
-//Collect  nodes Info recursing through peers
-//The effects are in the NetworkModel
-func (rpcClient *Client) collectNodeInfoRecursively(parent *Node) error {
-	err := rpcClient.collectNodeInfo(parent, false)
-	if err != nil {
-		return err
-	}
-	rpcClient.VisitedNodes[parent.ID] = MyTime(time.Now())
-
-	for _, peernode := range parent.Peers {
-		if _, beenThere := rpcClient.VisitedNodes[peernode.ID]; !beenThere {
-			rpcClient.collectNodeInfoRecursively(peernode) //ignoring the connection error - the unreachables set already
 		}
 	}
 	return nil

@@ -35,7 +35,7 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 	}
 	//Dump request:
 	fmt.Println("Request-----------------")
-	fmt.Println("From: ", req.Host)
+	fmt.Println("From: ", req.RemoteAddr)
 	fmt.Println(req.Method, " ", req.URL)
 	for k, vv := range req.Header {
 		for _, v := range vv {

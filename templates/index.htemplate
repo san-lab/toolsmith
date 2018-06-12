@@ -4,7 +4,7 @@
     <p>Reaching the net from: <b> {{.Client.LocalInfo.ClientIp}}</b> <br/>
 <ul>
     <li>rpc port: {{.Client.DefaultRPCPort}}</li>
-    <li>default node: {{.Client.DefaultEthNode}}</li>
+    <li>default node: {{.Client.DefaultEthNodeAddr}}</li>
     <li>debug: {{if .Client.DebugMode}} on {{else}} off {{end}}</li>
     <li>Network id: {{.Client.NetModel.NetworkID}}</li>
     <li>Known nodes: {{len .Client.NetModel.Nodes}}</li>

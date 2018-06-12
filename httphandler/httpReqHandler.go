@@ -75,7 +75,7 @@ func NewHttpHandler(c Config, ctx context.Context) (lhh *LilHttpHandler, err err
 //                                  or: 2 parts - interpreted as /node/ethMethod
 // The port No set at Client initialization is used for the RPC call
 func (lhh *LilHttpHandler) Handler(w http.ResponseWriter, r *http.Request) {
-
+	// FormValue() does the call to Parse()
 	if r.FormValue(toggle) == "yes" {
 		lhh.rpcClient.LocalInfo.RawMode = !lhh.rpcClient.LocalInfo.RawMode
 	}
@@ -117,6 +117,8 @@ func (lhh *LilHttpHandler) GetHandler(withAuth bool) handler {
 	}
 	return lhh.Handler
 }
+
+
 
 func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request, comm string) {
 	var err error

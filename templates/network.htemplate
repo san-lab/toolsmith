@@ -13,7 +13,7 @@ Unreachable addresses: </br>
 {{define "nodelist"}}
 <ul>
     {{range .Client.NetModel.Nodes}}
-       <li> <b>Node: </b> {{.ShortName}}, id: {{.IDHead 7}}...{{.IDTail 7}} , Reachable: {{ .IsReachable}},</br>
+       <li> <b>Node: </b> {{.ShortName}}, Type: {{.ClientType}}, id: {{.IDHead 7}}...{{.IDTail 7}} , Reachable: {{ .IsReachable}},</br>
         {{with .LastBlockNumberSample}} BlockNumber: {{.BlockNumber}} reported at {{.Sampled}}, {{end}}
         {{if .IsReachable}}
             Peer count: <a href="/{{.PrefAddress}}/admin_peers"> {{len .Peers}}</a> </br>

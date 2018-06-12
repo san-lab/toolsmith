@@ -25,12 +25,15 @@ func Decode(respBytes []byte, data *CallData) error {
 
 	var p interface{}
 	switch data.Command.Method {
-	case "admin_datadir", "net_version": // All the single-strings results fall here
+	case "admin_datadir", "net_version", "web3_clientVersion", "parity_enode", "parity_nodeName": // All the single-strings results fall here
 		s := StringResult("")
 		p = &s
+	case "parity_pendingTransactions":
+		p = &ParityPendingTxs{}
 	case "admin_peers":
 		p = &PeerArray{}
-
+	case "parity_netPeers":
+		p= &ParityPeerInfo{}
 	case "eth_blockNumber": //Result is not a struct, just an 0xdddd string representing a number
 		//b := HexString(0)
 		//p = &b
@@ -39,6 +42,7 @@ func Decode(respBytes []byte, data *CallData) error {
 		p = &NodeInfo{}
 	case "txpool_status":
 		p = &TxpoolStatusSample{}
+
 	}
 	if p != nil {
 		err = json.Unmarshal(data.Response.Result, p)
@@ -106,6 +110,13 @@ func (p PeerInfo) RemoteHostMachine() string {
 //A type to hook the "parse()" method on. *This* is a ParseableResultType.
 type PeerArray []PeerInfo
 
+type ParityPeerInfo struct {
+	Active    int `json:active`
+	Connected int `json:connected`
+	Max       int `json:max`
+	Peers     PeerArray
+}
+
 //If the json "Result" is just a string
 type StringResult string
 
@@ -118,6 +129,12 @@ type TxpoolStatusSample struct {
 
 func (txs *TxpoolStatusSample) stamp() {
 	txs.Sampled = MyTime(time.Now())
+}
+
+type ParityPendingTxs []interface{}
+
+func (ppt ParityPendingTxs) Len() int {
+	return len([]interface{}(ppt))
 }
 
 type HexString int64

@@ -53,8 +53,8 @@ type Watchdog struct {
 }
 
 type Config struct {
-	Recipients    map[string]bool
-	ProbeInterval time.Duration
+	Recipients     map[string]bool
+	ProbeInterval  time.Duration
 	BlockThreshold time.Duration
 }
 
@@ -168,10 +168,10 @@ func (w *Watchdog) probe() {
 			stk := []string{}
 			for _, n := range w.rpcClient.NetModel.Nodes {
 				if !n.IsReachable() {
-					unr = append(unr, n.ShortName())
+					unr = append(unr, n.ShortName)
 				}
 				if n.IsStuck() {
-					stk = append(stk, n.ShortName())
+					stk = append(stk, n.ShortName)
 				}
 			}
 			var data = struct {
@@ -219,13 +219,13 @@ func (w *Watchdog) GetInterval() int64 {
 
 //Set the max time (in seconds) for a new block to be mined/approved
 func (w *Watchdog) SetThreshold(interval int64) {
-	client.Threshold = time.Second*time.Duration(interval)
+	client.Threshold = time.Second * time.Duration(interval)
 	w.config.BlockThreshold = client.Threshold
 }
 
 //Get the max time (in seconds) for a new block to be mined/approved
-func (w *Watchdog) GetThreshold()  int64 {
-  return int64(client.Threshold/time.Second)
+func (w *Watchdog) GetThreshold() int64 {
+	return int64(client.Threshold / time.Second)
 }
 
 //List active recipients in aws-sdk friendly format
