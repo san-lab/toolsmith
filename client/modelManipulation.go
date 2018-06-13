@@ -58,6 +58,56 @@ func (rpcClient *Client) collectStubNodeInfo(stub *Node) (err error) {
 	return nil
 }
 
+//This is a swiss-army-knife method, and hence the addr as an argument instead of a node pointer
+func (rpcClient *Client) Peers(addr string) (pinfo PeerArray, err error) {
+	var method string
+	node, found := rpcClient.NetModel.ResolveAddress(addr)
+	if !found {
+		node = NewNode()
+		node.KnownAddresses[rpcClient.DefaultEthNodeAddr] = true
+		rpcClient.NetModel.AccessNode = node
+		err = rpcClient.collectNodeInfo(node, true)
+		if err != nil {
+			return
+		}
+		rpcClient.NetModel.Nodes[node.ID] = node
+	}
+
+	if node.IsGeth() {
+		method = "admin_peers"
+	} else if node.IsParity() {
+		method = "parity_netPeers"
+	} else {
+		err = errors.New("unsupported Client version: " + node.ClientVersion)
+		return
+	}
+	data := rpcClient.NewCallData(method)
+	data.Context.TargetNode = addr
+	err = rpcClient.actualRpcCall(data)
+	if err != nil || !data.Parsed {
+		return
+	}
+	if node.IsGeth() {
+		var ok bool
+		node.JSONPeers, ok = data.ParsedResult.(*PeerArray)
+		pinfo = *node.JSONPeers
+		if !ok {
+			err = errors.New("Could not parse the result of JSONPeers of " + node.ShortName + " at " + addr)
+			return
+		}
+	} else if node.IsParity() {
+		ppeersResp, ok := data.ParsedResult.(*ParityPeerInfo)
+		if !ok {
+			errors.New("Could not parse the result of JSONPeers of " + node.ShortName + " at " + addr)
+			return
+		}
+		node.JSONPeers = &ppeersResp.Peers
+		pinfo = ppeersResp.Peers
+
+	}
+	return
+}
+
 func (rpcClient *Client) collectGethNodeInfo(node *Node, fromScratch bool) error {
 	data := rpcClient.NewCallData("admin_nodeInfo")
 	data.Context.TargetNode = node.PrefAddress()
@@ -107,16 +157,20 @@ func (rpcClient *Client) collectParityNodeInfo(stub *Node) error {
 	stub.Name = stub.ShortName + "/" + stub.Enode
 	stub.isStub = false
 	//TODO: this is fitting Parity info into Geth structures - ugly
-	data.Command.Method="parity_pendingTransactions"
+	data.Command.Method = "parity_pendingTransactions"
 	err = rpcClient.actualRpcCall(data)
 	if err != nil {
 		return err
 	}
+	err = stub.sampleBlockNo(rpcClient)
+	if err != nil {
+		return err
+	}
 	txs, ok := data.ParsedResult.(*ParityPendingTxs)
-	if ! ok {
+	if !ok {
 		return errors.New("could not cast to parity_pendingTransactions while getting node info")
 	}
-	stub.TxpoolStatus = &TxpoolStatusSample{ Pending:HexString(txs.Len()), Queued: HexString(-1)}
+	stub.TxpoolStatus = &TxpoolStatusSample{Pending: HexString(txs.Len()), Queued: HexString(0)}
 	stub.TxpoolStatus.stamp()
 	return err
 }
@@ -218,42 +272,46 @@ func (rpcClient *Client) SetNetworkId() error {
 	return nil
 }
 
-
 func (rpcClient *Client) collectNodePeerInfo(node *Node, rebuild bool) (err error) {
+	/*
+		var method string
 
-	var method string
+		if node.IsGeth() {
+			method = "admin_peers"
+		} else if node.IsParity() {
+			method = "parity_netPeers"
+		} else {
+			return errors.New("unsupported Client version: " + node.ClientVersion)
+		}
+		prefaddr := node.PrefAddress()
+		if len(prefaddr) == 0 {
+			err = errors.New("cannot find peers, no known address for the node " + node.ShortName)
+			return
+		}
+		callData := rpcClient.NewCallData(method)
+		callData.Context.TargetNode = prefaddr
+		err = rpcClient.actualRpcCall(callData)
+		if err != nil || !callData.Parsed {
+			return err
+		}
 
-	if node.IsGeth() {
-		method = "admin_peers"
-	} else if node.IsParity() {
-		method = "parity_netPeers"
-	} else {
-		return errors.New("unsupported Client version: " + node.ClientVersion)
-	}
-	prefaddr := node.PrefAddress()
-	if len(prefaddr) == 0 {
-		err = errors.New("cannot find peers, no known address for the node " + node.ShortName)
+		if node.IsGeth() {
+			var ok bool
+			node.JSONPeers, ok = callData.ParsedResult.(*PeerArray)
+			if !ok {
+				return errors.New("Could not parse the result of JSONPeers of " + node.ShortName + " at " + prefaddr)
+			}
+		} else if node.IsParity() {
+			ppeersResp, ok := callData.ParsedResult.(*ParityPeerInfo)
+			if !ok {
+				return errors.New("Could not parse the result of JSONPeers of " + node.ShortName + " at " + prefaddr)
+			}
+			node.JSONPeers = &ppeersResp.Peers
+		}
+	*/
+	_, err = rpcClient.Peers(node.PrefAddress())
+	if err != nil {
 		return
-	}
-	callData := rpcClient.NewCallData(method)
-	callData.Context.TargetNode = prefaddr
-	err = rpcClient.actualRpcCall(callData)
-	if err != nil || !callData.Parsed {
-		return err
-	}
-
-	if node.IsGeth() {
-		var ok bool
-		node.JSONPeers, ok = callData.ParsedResult.(*PeerArray)
-		if !ok {
-			return errors.New("Could not parse the result of JSONPeers of " + node.ShortName + " at " + prefaddr)
-		}
-	} else if node.IsParity() {
-		ppeersResp, ok := callData.ParsedResult.(*ParityPeerInfo)
-		if !ok {
-			return errors.New("Could not parse the result of JSONPeers of " + node.ShortName + " at " + prefaddr)
-		}
-		node.JSONPeers = &ppeersResp.Peers
 	}
 	node.Peers = map[string]*Node{}
 	for _, pi := range *node.JSONPeers {

@@ -22,6 +22,7 @@ const discover = "discovernetwork"
 const bloop = "bloop"
 const rescan = "rescan"
 const heartbeat = "heartbeat"
+const peers = "peers"
 const debugOn = "debugon"
 const debugOff = "debugoff"
 const loadtemplates = "loadtemplates"
@@ -129,6 +130,10 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 	}
 	rdata := templates.RenderData{HeaderData: &cc, TemplateName: templates.Home, Client: lhh.rpcClient}
 	switch comm {
+	case peers:
+		pinfo , _ := lhh.rpcClient.Peers(r.Form.Get("nodeaddr"))
+		rdata.BodyData = struct { Addr string; Peers client.PeerArray }{r.Form.Get("nodeaddr"), pinfo}
+		rdata.TemplateName = templates.Peers
 	case discover:
 		err = lhh.rpcClient.DiscoverNetwork()
 		rdata.TemplateName = templates.Network

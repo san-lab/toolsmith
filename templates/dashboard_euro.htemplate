@@ -32,9 +32,9 @@
 
 
 <table id="container"><tr>
-    <td> <div id="mynetwork" style="height: 400px; width: 600px; float: left" ></div>
+    <td> <div id="mynetwork" style="height: 435px; width: 520px; float: left" ></div>
         <div id="stat"  >
-           <button type="button" onclick="circle(nodes)">Cirlce graph</button></div>
+           <button type="button" onclick="circle(nodes)">Cirlce graph</button> <button type="button" onclick="europe(nodes)">Europe</button></div>
     </td>
     <td>
         <div id="textpane" style="height: 400px; width: 600px; float: left; padding-top: 20px; padding-left: 30px;" >
@@ -65,6 +65,7 @@
 
     var ncount = nodes.length;
     function circle (nodes) {
+        document.getElementById("mynetwork").style.backgroundImage="";
         var ids = nodes.getIds();
         var r = 160;
         var aspect = 1.2;
@@ -74,6 +75,34 @@
             var y0 = r * Math.sin(i * step) - 25;
             network.moveNode(ids[i], x0, y0);
         }
+    }
+
+    function europe (nodes) {
+        document.getElementById("mynetwork").style.backgroundImage='url("/static/europe3cr.png")';
+        document.getElementById("mynetwork").style.backgroundSize="contain";
+       nodes.update({id : "f9f9e088fde9bfa199af10f3a94281c5bb5b6b0fda7c768f2ab52aac30eca3b97e2bff79e7035e391e740a6e99c91625dc981792e476719df330a7a5786b2816",
+       label: "GB"})
+        //uk
+        network.moveNode("f9f9e088fde9bfa199af10f3a94281c5bb5b6b0fda7c768f2ab52aac30eca3b97e2bff79e7035e391e740a6e99c91625dc981792e476719df330a7a5786b2816",
+            -50,-40)
+        //spain
+        network.moveNode("e0e06098910e7be354cce21c351ec5ebe439e334dc565454f6111801badcb49f725e80aa68afc69755cf6daee2ead83131e705d7fe2111688d27db6a54ac33c4",
+            -120,145)
+        //portugal
+        network.moveNode("46944523706410298a9a6f10d85a55fff40a49d0369f5ba8ac59a31a033bfe4571fc48c22d604a59af10caefa669c71ea6a6efdb1866e07fd15b4c8a83c1d6d7",
+            -198,160)
+        //poland
+        network.moveNode("5ea568d824fb002f5a62bd9a5e728446364d259d8e11c99fb342123fc84e0be8b00e2fed858fd1e914a2f20cb5d78bddb5d46640898b1e758c3fed67c2f135b1",
+            170,-20)
+        //miner3
+        network.moveNode("4779929bba5b36c9699090aadb0641ba0a8a7e3da9bc0b954a2046b977b1a4fc992a7268fd5616bcaa1965419ecc127758967965be926f033f06f3c2ebe810ce",
+            150,-170)
+        //miner2
+        network.moveNode("c756921388c9a6754f53fdd36959cd0315ae4c794c0088201928a2700c802dd08b7bf58a73afb064250303ad9d2e67ecf9dec386e7a199228e1df86627fb4f05",
+            0,-170)
+        //miner1
+        network.moveNode("eae835efffe690df874ced68c26e91f0ef47bf53424ce4d516e3cee614a6562802b65716b387e50df3dc1a22d47034ce4849424af9e04dd4a44dccd09b3a5c47",
+            -150,-170)
     }
 
     //circle(nodes);
