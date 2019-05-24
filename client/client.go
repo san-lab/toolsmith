@@ -219,7 +219,7 @@ func (rpcClient *Client) FullMesh() error {
 			if k1 == k2 {
 				continue
 			}
-			_, hasalready := n1.PeerSeenAs(n2)
+			_, hasalready := n1.PeerSeenAs(n2.ID)
 			if hasalready {
 				continue
 			}

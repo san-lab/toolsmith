@@ -1,9 +1,9 @@
 {{define "peers"}}
 {{template "header" .HeaderData}}
 
-<h2>Peers of {{.BodyData.Addr}}</h2>
+<h2>Peers of {{.BodyData.ShortName}}</h2>
 <ol>
-{{range $peer:= .BodyData.Peers}}
+{{range $peer:= .BodyData.JSONPeersH}}
    <li> <a href="/{{.RemoteHostMachine}}/admin_nodeInfo" >{{$peer.RemoteHostMachine}} </a>  </li>
 {{end}}
 </ol>

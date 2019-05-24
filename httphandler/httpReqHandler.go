@@ -71,7 +71,7 @@ func NewHttpHandler(c Config, ctx context.Context) (lhh *LilHttpHandler, err err
 	return lhh, err
 }
 
-// Handles incoming requests. Some will be forwarted to the RPC client.
+// Handles incoming requests. Some will be forwarded to the RPC client.
 // Assumes the request path has either: 1 part - interpreted as a /command with logic implemented within the client
 //                                  or: 2 parts - interpreted as /node/ethMethod
 // The port No set at Client initialization is used for the RPC call
@@ -131,9 +131,11 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 	rdata := templates.RenderData{HeaderData: &cc, TemplateName: templates.Home, Client: lhh.rpcClient}
 	switch comm {
 	case peers:
-		pinfo , _ := lhh.rpcClient.Peers(r.Form.Get("nodeaddr"))
-		rdata.BodyData = struct { Addr string; Peers client.PeerArray }{r.Form.Get("nodeaddr"), pinfo}
-		rdata.TemplateName = templates.Peers
+		node , ok := lhh.rpcClient.NetModel.Nodes[  client.NodeID(r.FormValue("nodeid"))  ]
+		if ok {
+			rdata.BodyData = node
+			rdata.TemplateName = templates.Peers
+		}
 	case discover:
 		err = lhh.rpcClient.DiscoverNetwork()
 		rdata.TemplateName = templates.Network
@@ -170,9 +172,9 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 		lhh.rpcClient.Rescan()
 		rdata.TemplateName = "magic"
 	case mockblock:
-		lhh.rpcClient.BlockAddress(r.Form["addr"][0])
+		lhh.rpcClient.BlockAddress(r.FormValue("addr") )
 	case mockunblock:
-		lhh.rpcClient.UnblockAddress(r.Form["addr"][0])
+		lhh.rpcClient.BlockAddress(r.FormValue("addr") )
 	case addrecipient:
 		email := r.Form.Get(emailparamname)
 		lhh.watchdog.AddRecipient(email)
@@ -212,13 +214,15 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 				lhh.setPassword(username, npassword[0])
 			}
 		}
+
 	default:
 		err_msg := fmt.Sprintf("Unknown command: %s", comm)
-		rdata.Error = err_msg
+
 		err = errors.New(err_msg)
 	}
 	if err != nil {
 		log.Println(err)
+		rdata.Error = fmt.Sprint(err)
 	}
 	lhh.renderer.RenderResponse(w, rdata)
 

@@ -18,15 +18,15 @@ func (rpcClient *Client) Rescan() error {
 	return nil
 }
 
-func (rpcClient *Client) collectNodeInfo(node *Node, flag bool) error {
-	if node.isStub {
-		err := rpcClient.collectStubNodeInfo(node)
-		if err != nil {
+func (rpcClient *Client) collectNodeInfo(node *Node, refetch bool) error {
+
+	err := rpcClient.establishNodeClientVersion(node, refetch)
+	if err != nil {
 			return err
-		}
 	}
+
 	if node.IsGeth() {
-		return rpcClient.collectGethNodeInfo(node, flag)
+		return rpcClient.collectGethNodeInfo(node, refetch)
 	} else if node.IsParity() {
 		return rpcClient.collectParityNodeInfo(node)
 	} else {
@@ -34,44 +34,38 @@ func (rpcClient *Client) collectNodeInfo(node *Node, flag bool) error {
 	}
 }
 
-func (rpcClient *Client) collectStubNodeInfo(stub *Node) (err error) {
-	addr := stub.PrefAddress()
-	if len(addr) == 0 {
-		err = errors.New("no known address for the node, exiting")
-		log.Println(err)
-		return err
-	}
+func (rpcClient *Client) establishNodeClientVersion(stub *Node, refetch bool) (err error) {
+	if refetch || len(stub.ClientVersion) == 0 {
+		addr := stub.PrefAddress()
+		if len(addr) == 0 {
+			err = errors.New("no known address for the node, exiting")
+			log.Println(err)
+			return err
+		}
 
-	data := rpcClient.NewCallData("web3_clientVersion")
-	data.Context.TargetNode = addr
-	err = rpcClient.actualRpcCall(data)
-	if err != nil {
-		return err
+		data := rpcClient.NewCallData("web3_clientVersion")
+		data.Context.TargetNode = addr
+		err = rpcClient.actualRpcCall(data)
+		if err != nil {
+			return err
+		}
+		cvr, ok := data.ParsedResult.(*StringResult)
+		if !ok {
+			err = errors.New("could not parse the ClientVersion of the root node")
+			return err
+		}
+		stub.SetReachable(true)
+		stub.ClientVersion = string(*cvr)
+
 	}
-	cvr, ok := data.ParsedResult.(*StringResult)
-	if !ok {
-		err = errors.New("could not parse the ClientVersion of the root node")
-		return err
-	}
-	stub.SetReachable(true)
-	stub.ClientVersion = string(*cvr)
 	return nil
+
 }
 
-//This is a swiss-army-knife method, and hence the addr as an argument instead of a node pointer
-func (rpcClient *Client) Peers(addr string) (pinfo PeerArray, err error) {
+
+
+func (rpcClient *Client) SetPeers(node *Node) (err error) {
 	var method string
-	node, found := rpcClient.NetModel.ResolveAddress(addr)
-	if !found {
-		node = NewNode()
-		node.KnownAddresses[rpcClient.DefaultEthNodeAddr] = true
-		rpcClient.NetModel.AccessNode = node
-		err = rpcClient.collectNodeInfo(node, true)
-		if err != nil {
-			return
-		}
-		rpcClient.NetModel.Nodes[node.ID] = node
-	}
 
 	if node.IsGeth() {
 		method = "admin_peers"
@@ -82,7 +76,7 @@ func (rpcClient *Client) Peers(addr string) (pinfo PeerArray, err error) {
 		return
 	}
 	data := rpcClient.NewCallData(method)
-	data.Context.TargetNode = addr
+	data.Context.TargetNode = node.prefAddress
 	err = rpcClient.actualRpcCall(data)
 	if err != nil || !data.Parsed {
 		return
@@ -90,23 +84,32 @@ func (rpcClient *Client) Peers(addr string) (pinfo PeerArray, err error) {
 	if node.IsGeth() {
 		var ok bool
 		node.JSONPeers, ok = data.ParsedResult.(*PeerArray)
-		pinfo = *node.JSONPeers
 		if !ok {
-			err = errors.New("Could not parse the result of JSONPeers of " + node.ShortName + " at " + addr)
+			err = errors.New("Could not parse the result of JSONPeers of " + node.ShortName )
 			return
 		}
 	} else if node.IsParity() {
-		ppeersResp, ok := data.ParsedResult.(*ParityPeerInfo)
+		peersResp, ok := data.ParsedResult.(*ParityPeerInfo)
 		if !ok {
-			errors.New("Could not parse the result of JSONPeers of " + node.ShortName + " at " + addr)
+			errors.New("Could not parse the result of JSONPeers of " + node.ShortName )
 			return
 		}
-		node.JSONPeers = &ppeersResp.Peers
-		pinfo = ppeersResp.Peers
+		node.JSONPeers = &peersResp.Peers
+
 
 	}
+
+	for _,pi := range *node.JSONPeers {
+		n := NodeFromPeerInfo_Get(nil,&pi)
+		node.Peers[NodeID(pi.ID)] = n
+	}
+
+
 	return
 }
+
+
+
 
 func (rpcClient *Client) collectGethNodeInfo(node *Node, fromScratch bool) error {
 	data := rpcClient.NewCallData("admin_nodeInfo")
@@ -122,8 +125,8 @@ func (rpcClient *Client) collectGethNodeInfo(node *Node, fromScratch bool) error
 			log.Printf("expected %T got %T", ni, data.ParsedResult)
 			return errors.New("not ok parsing the root node info")
 		}
-		FillNodeFromNodeInfo(node, ni)
-		node.isStub = false
+		FillNodeFromNodeInfo_Geth(node, ni)
+		node.isFromPeer = false
 	}
 	//Get the txpool status
 	data.Command.Method = "txpool_status"
@@ -136,6 +139,10 @@ func (rpcClient *Client) collectGethNodeInfo(node *Node, fromScratch bool) error
 
 	//Get the BlockNumber
 	err = node.sampleBlockNo(rpcClient)
+
+	//Get peers
+	err = rpcClient.SetPeers(node)
+
 	return err
 }
 
@@ -154,8 +161,8 @@ func (rpcClient *Client) collectParityNodeInfo(stub *Node) error {
 	}
 	stub.Enode = string(*data.ParsedResult.(*StringResult)) //TODO: parsing errors unhandled!
 	stub.ID = NodeID(strings.Split(strings.Split(stub.Enode, "//")[1], "@")[0])
-	stub.Name = stub.ShortName + "/" + stub.Enode
-	stub.isStub = false
+	stub.FullName = stub.ShortName + "/" + stub.Enode
+	stub.isFromPeer = false
 	//TODO: this is fitting Parity info into Geth structures - ugly
 	data.Command.Method = "parity_pendingTransactions"
 	err = rpcClient.actualRpcCall(data)
@@ -172,22 +179,20 @@ func (rpcClient *Client) collectParityNodeInfo(stub *Node) error {
 	}
 	stub.TxpoolStatus = &TxpoolStatusSample{Pending: HexString(txs.Len()), Queued: HexString(0)}
 	stub.TxpoolStatus.stamp()
+
+	//Get peers
+	err = rpcClient.SetPeers(stub)
 	return err
 }
 
 func (rpcClient *Client) DiscoverNetwork() error {
 	rpcClient.UnreachableAddresses = map[string]MyTime{}
 	rpcClient.NetModel.Nodes = map[NodeID]*Node{}
-	rpcClient.SetNetworkId()
-	stub := NewNode()
-	stub.KnownAddresses[rpcClient.DefaultEthNodeAddr] = true
-	rpcClient.NetModel.AccessNode = stub
-	err := rpcClient.collectNodeInfo(stub, true)
+	err := rpcClient.GetNetworkBasics()
 	if err != nil {
 		return err
 	}
-	rpcClient.NetModel.Nodes[stub.ID] = stub
-	rpcClient.collectNodeInfoRecursively(stub)
+	rpcClient.collectNodeInfoRecursively(rpcClient.NetModel.Nodes[rpcClient.NetModel.AccessNodeID])
 	return nil
 }
 
@@ -195,27 +200,22 @@ func (rpcClient *Client) DiscoverNetwork() error {
 //The effects are in the NetworkModel
 func (rpcClient *Client) collectNodeInfoRecursively(parent *Node) error {
 
-	err := rpcClient.collectNodePeerInfo(parent, true)
-	if err != nil {
-		return err
+
+	for id, peer := range parent.Peers {
+		if rpcClient.NetModel.Nodes[id] == nil {
+			node := NewNode()
+			node.ID = peer.ID
+			node.prefAddress = peer.prefAddress
+			node.KnownAddresses[peer.prefAddress]=true
+			rpcClient.NetModel.Nodes[node.ID]=node
+			rpcClient.collectNodeInfo(node, true)
+
+
+			rpcClient.collectNodeInfoRecursively(node)
+		}
 	}
 
-	for _, peernode := range parent.Peers {
-		if _, visited := rpcClient.NetModel.Nodes[peernode.ID]; visited {
-			continue
-		}
-		rpcClient.NetModel.Nodes[peernode.ID] = peernode
-		err = rpcClient.collectNodeInfo(peernode, false)
-		if err != nil {
-			log.Println(err)
-			continue
-		}
 
-		err = rpcClient.collectNodeInfoRecursively(peernode)
-		if err != nil {
-			log.Println(err)
-		}
-	}
 	return nil
 }
 
@@ -257,9 +257,12 @@ func (rpcClient *Client) Bloop() (blocks map[string]interface{}, err error) {
 	return
 }
 
-func (rpcClient *Client) SetNetworkId() error {
+
+//Verifies that the default RPC gateway works, Gets the basic Network information
+//Gets basic info on the entry Node and Peers of the entry Node
+func (rpcClient *Client) GetNetworkBasics() error {
 	//First find out the network ID, if not known
-	if rpcClient.NetModel.NetworkID == "" {
+
 		callData := rpcClient.NewCallData("net_version")
 		callData.Context.TargetNode = rpcClient.DefaultEthNodeAddr
 		err := rpcClient.actualRpcCall(callData)
@@ -268,63 +271,36 @@ func (rpcClient *Client) SetNetworkId() error {
 		}
 		sr := callData.ParsedResult.(*StringResult)
 		rpcClient.NetModel.NetworkID = string(*sr)
-	}
+		stub := NewNode()
+		stub.KnownAddresses[rpcClient.DefaultEthNodeAddr] = true
+		stub.prefAddress = rpcClient.DefaultEthNodeAddr
+		err = rpcClient.collectNodeInfo(stub, true)
+		if err != nil {
+			return err
+		}
+		rpcClient.NetModel.AccessNodeID = stub.ID
+		rpcClient.NetModel.Nodes[stub.ID] = stub
+
+
+
 	return nil
 }
 
 func (rpcClient *Client) collectNodePeerInfo(node *Node, rebuild bool) (err error) {
-	/*
-		var method string
 
-		if node.IsGeth() {
-			method = "admin_peers"
-		} else if node.IsParity() {
-			method = "parity_netPeers"
-		} else {
-			return errors.New("unsupported Client version: " + node.ClientVersion)
-		}
-		prefaddr := node.PrefAddress()
-		if len(prefaddr) == 0 {
-			err = errors.New("cannot find peers, no known address for the node " + node.ShortName)
-			return
-		}
-		callData := rpcClient.NewCallData(method)
-		callData.Context.TargetNode = prefaddr
-		err = rpcClient.actualRpcCall(callData)
-		if err != nil || !callData.Parsed {
-			return err
-		}
-
-		if node.IsGeth() {
-			var ok bool
-			node.JSONPeers, ok = callData.ParsedResult.(*PeerArray)
-			if !ok {
-				return errors.New("Could not parse the result of JSONPeers of " + node.ShortName + " at " + prefaddr)
-			}
-		} else if node.IsParity() {
-			ppeersResp, ok := callData.ParsedResult.(*ParityPeerInfo)
-			if !ok {
-				return errors.New("Could not parse the result of JSONPeers of " + node.ShortName + " at " + prefaddr)
-			}
-			node.JSONPeers = &ppeersResp.Peers
-		}
-	*/
-	_, err = rpcClient.Peers(node.PrefAddress())
+	//_, err = rpcClient.Peers(node.PrefAddress())
 	if err != nil {
 		return
 	}
-	node.Peers = map[string]*Node{}
+	node.Peers = map[NodeID]*Node{}
 	for _, pi := range *node.JSONPeers {
-		var pn *Node
-		var known bool
-		if pn, known = rpcClient.NetModel.Nodes[NodeID(pi.ID)]; known && !rebuild {
-			NodeFromPeerInfo(pn, &pi)
-		} else {
-			pn = NodeFromPeerInfo(nil, &pi)
-		}
+
+
+		pn := NodeFromPeerInfo_Get(nil , &pi)
+
 		pn.KnownAddresses[pi.RemoteHostMachine()] = true
-		node.Peers[pi.RemoteHostMachine()] = pn
-		//log.Printf("Adding %s as a peer of %s\n", pn.ShortName(), node.ShortName())
+
+
 
 	}
 	return nil

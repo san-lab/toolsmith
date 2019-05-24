@@ -68,6 +68,7 @@ func StartWatchdog(rpcClient *client.Client, ctx context.Context) *Watchdog {
 	if atomic.LoadUint32(&started) == 1 {
 		return instance
 	}
+	defer atomic.StoreUint32(&started, 1)
 	mx.Lock()
 	defer mx.Unlock()
 	instance = &Watchdog{rpcClient: rpcClient}

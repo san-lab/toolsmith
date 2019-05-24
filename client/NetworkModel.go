@@ -9,8 +9,8 @@ import (
 //A structure to keep the model of the blockchain network
 type BlockchainNet struct {
 	DefaultAccessIP   string
-	DefaultEthrpcPort string
-	AccessNode        *Node
+	DefaultEthRpcPort string
+	AccessNodeID      NodeID
 	NetworkID         string
 	Nodes             map[NodeID]*Node //The NodeID is meant to be the key here
 
@@ -45,21 +45,21 @@ type Node struct {
 	ID                    NodeID
 	Enode                 string
 	ThisNodeInfo          NodeInfo // should not be needed
-	Name                  string
+	FullName              string
+	ShortName             string
 	KnownAddresses        map[string]bool
 	JSONPeers             *PeerArray // Should not be needed
 	LastBlockNumberSample *BlockNumberSample
 	PrevBlockNumberSample *BlockNumberSample
 	TxpoolStatus          *TxpoolStatusSample
-	Peers                 map[string]*Node // ipaddress -> node
+	Peers                 map[NodeID]*Node //
 	LastReach             MyTime
 	LastFail              MyTime
 	issReachable          bool
 	prefAddress           string
 	progress              bool
 	ClientVersion         string
-	ShortName             string
-	isStub                bool
+	isFromPeer            bool
 }
 
 func (n *Node) IsStuck() bool {
@@ -75,13 +75,14 @@ func (bcn BlockchainNet) ResolveAddress(addr string) (*Node, bool) {
 	return nil, false
 }
 
-func (n *Node) PeerSeenAs(peer *Node) (string, bool) {
-	for a, p := range n.Peers {
-		if p.ID == peer.ID {
-			return a, true
+//Returns address at which node1 see node2 as peer  and false if no connection detected
+func (n *Node) PeerSeenAs(peer NodeID) (string, bool) {
+	for _, p := range n.Peers {
+		if p.ID == peer {
+			return p.prefAddress, true
 		}
 	}
-	return "invisible", false
+	return "", false
 }
 
 // Geth specific
@@ -91,7 +92,7 @@ func (n Node) getGethShortName() (string, bool) {
 	if !n.IsGeth() {
 		return "", false
 	}
-	parts := strings.Split(n.Name, "/")
+	parts := strings.Split(n.FullName, "/")
 	if len(parts) > 1 {
 		return parts[1], true
 
@@ -150,6 +151,10 @@ func (n *Node) IsGeth() bool {
 	return strings.HasPrefix(n.ClientVersion, "Geth")
 }
 
+func (n *Node) IsPantheon() bool {
+	return strings.HasPrefix(n.ClientVersion, "pantheon")
+}
+
 func (n *Node) ClientType() string {
 	return strings.Split(n.ClientVersion, "/")[0]
 }
@@ -157,31 +162,35 @@ func (n *Node) ClientType() string {
 func NewNode() *Node {
 	n := &Node{}
 	n.KnownAddresses = map[string]bool{}
-	n.Peers = map[string]*Node{}
-	n.isStub = true
+	n.Peers = map[NodeID]*Node{}
+	n.isFromPeer = true
 	return n
 }
 
 
 //Geth specific
-func FillNodeFromNodeInfo(n *Node, ni *NodeInfo) {
+func FillNodeFromNodeInfo_Geth(n *Node, ni *NodeInfo) {
 	n.ID = NodeID(ni.ID)
 	n.ThisNodeInfo = *ni
-	n.Name = ni.Name
+	n.FullName = ni.Name
 	n.Enode = ni.Enode
 	n.ShortName, _ = n.getGethShortName()
 	n.SetReachable(true) //This is based on the assumption that the node info has been just obtained
 	return
 }
 
-func NodeFromPeerInfo(n *Node,pi *PeerInfo) *Node {
+
+
+func NodeFromPeerInfo_Get(n *Node,pi *PeerInfo) (*Node) {
 	if n== nil {
 		n = NewNode()
 	}
 	n.ID = NodeID(pi.ID)
-	n.Name = pi.Name
+	n.FullName = pi.Name
 	n.ShortName, _ = n.getGethShortName()
-	n.KnownAddresses = map[string]bool{}
+	addr := strings.Split(pi.Network.RemoteAddress, ":")[0]
+	n.KnownAddresses = map[string]bool{addr:true}
+	n.prefAddress = addr
 	return n
 }
 

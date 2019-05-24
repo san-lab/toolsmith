@@ -45,10 +45,12 @@ func (bcn *BlockchainNet) VisjsEdges() template.JS {
 		if !nd.IsReachable() {
 			continue
 		}
-		for adr, pnd := range nd.Peers {
-			if nd.ID > pnd.ID {
-				retAddr, _ := pnd.PeerSeenAs(nd)
-				ve = append(ve, VisjsEdge(nd, adr+"<->"+retAddr, pnd))
+		for _, pnd := range nd.Peers {
+			if nd.ID < pnd.ID || bcn.Nodes[pnd.ID].isFromPeer {
+
+				retAddr, _ := bcn.Nodes[pnd.ID].PeerSeenAs(nd.ID)
+				forAddr, _ := bcn.Nodes[nd.ID].PeerSeenAs(pnd.ID)
+				ve = append(ve, VisjsEdge(nd, forAddr+"<->"+retAddr, pnd))
 			}
 		}
 
