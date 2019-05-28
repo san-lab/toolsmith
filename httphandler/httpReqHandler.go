@@ -174,7 +174,7 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 	case mockblock:
 		lhh.rpcClient.BlockAddress(r.FormValue("addr") )
 	case mockunblock:
-		lhh.rpcClient.BlockAddress(r.FormValue("addr") )
+		lhh.rpcClient.UnblockAddress(r.FormValue("addr") )
 	case addrecipient:
 		email := r.Form.Get(emailparamname)
 		lhh.watchdog.AddRecipient(email)
