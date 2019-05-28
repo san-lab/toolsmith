@@ -302,7 +302,6 @@ func (lhh *LilHttpHandler) RpcCallAndRespond(w http.ResponseWriter, r *http.Requ
 
 type Config struct {
 	EthHost       string
-	HttpPort      string
 	MockMode      bool
 	DumpRPC       bool
 	StartWatchdog bool

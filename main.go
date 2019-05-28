@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"strconv"
 )
 
 //Parsing flags "ethport" and "host"
@@ -18,16 +19,18 @@ import (
 func main() {
 
 	ethRPCAddress := flag.String("ethRPCAddress", "localhost:8545", "default RPC access point")
-	httpPort := flag.String("httpPort", "8090", "http port")
+	httpPortF := flag.String("httpPort", "8090", "http port")
 	mockMode := flag.Bool("mockMode", false, "should mock http RPC client")
 	dumpRPC := flag.Bool("dumpRPC", false, "should dump RPC responses to files")
 	startWatchdog := flag.Bool("startWatchdog", false, "should a watchdog  be started")
 	withBasicAuth := flag.Bool("withAuth", true, "should Basic Authentication be enabled")
+	httpsPortF := flag.Int("httpsPort", 0, "https port. tls not started if not provided. requires server.crt & server.key")
 	flag.Parse()
 
 	c := httphandler.Config{}
 	c.EthHost = *ethRPCAddress
-	c.HttpPort = *httpPort
+	httpPort := *httpPortF
+	httpsPort := *httpsPortF
 	c.MockMode = *mockMode
 	c.DumpRPC = *dumpRPC
 	c.StartWatchdog = *startWatchdog
@@ -50,15 +53,27 @@ func main() {
 	fs := http.FileServer(http.Dir("static"))
 	http.HandleFunc("/static/", http.StripPrefix("/static", fs).ServeHTTP)
 	http.HandleFunc("/", handler.GetHandler(*withBasicAuth))
-	srv := http.Server{Addr: ":" + c.HttpPort}
+	srv := http.Server{Addr: ":" + httpPort}
+	var tlsSrv http.Server
+	if httpsPort > 0 {
+		tlsSrv = http.Server{Addr:":" + strconv.Itoa(httpsPort) }
+	}
 	go func() {
 		select {
 		case <-interruptChan:
 			cancel()
 			srv.Shutdown(context.TODO())
+			if httpsPort > 0 {
+				tlsSrv.Shutdown(context.TODO())
+			}
 			return
 		}
 	}()
+	if httpsPort > 0 {
+		go func() {
+			log.Println(tlsSrv.ListenAndServeTLS("server.crt", "server.key"  ))
+		}()
+	}
 	log.Println(srv.ListenAndServe())
 	wg.Wait()
 }
