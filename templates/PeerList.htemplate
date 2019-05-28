@@ -3,8 +3,8 @@
 
 <h2>Peers of {{.BodyData.ShortName}}</h2>
 <ol>
-{{range $peer:= .BodyData.JSONPeersH}}
-   <li> <a href="/{{.RemoteHostMachine}}/admin_nodeInfo" >{{$peer.RemoteHostMachine}} </a>  </li>
+{{range $peer:= .BodyData.Peers}}
+   <li> <a href="/{{.PrefAddress}}/admin_nodeInfo" >{{$peer.FullName}} </a>  </li>
 {{end}}
 </ol>
 {{template "footer"}}
