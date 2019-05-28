@@ -12,10 +12,7 @@
 
 {{define "magic"}}
 {{template "header" .HeaderData}}
-<!doctype html>
-<html>
-<head>
-    <title>Network | Basic usage</title>
+
 
     <script type="text/javascript" src="/static/vis.js"></script>
     <link href="/static/vis-network.min.css" rel="stylesheet" type="text/css" />
@@ -27,17 +24,16 @@
             border: 1px solid lightgray;
         }
     </style>
-</head>
-<body>
+
 
 
 <table id="container"><tr>
-    <td> <div id="mynetwork" style="height: 435px; width: 520px; float: left" ></div>
+    <td valign="top"> <div id="mynetwork" style="height: 435px; width: 520px; float: left" ></div>
         <div id="stat"  >
            <button type="button" onclick="circle(nodes)">Cirlce graph</button> <button type="button" onclick="europe(nodes)">Europe</button></div>
     </td>
     <td>
-        <div id="textpane" style="height: 400px; width: 600px; float: left; padding-top: 20px; padding-left: 30px;" >
+        <div id="textpane"  >
             {{template "nodelist" .}}
         </div></td>
 </tr></table>
