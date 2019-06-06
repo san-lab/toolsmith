@@ -83,7 +83,7 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 	destHeader := wr.Header()
 	copyHeaders(&resp.Header, &destHeader)
 
-	//wr.WriteHeader(resp.StatusCode)
+	wr.WriteHeader(resp.StatusCode)
 	wr.Write(respBytes)
 }
 
@@ -93,6 +93,7 @@ func main() {
 	chost := flag.String("callHost", "localhost", "The server to call")
 	cport := flag.String("callPort", "9090", "The port to call")
 	honly := flag.Bool("headersOnly", false, "If true no message body dump")
+	tls := flag.Bool("tls", false, "TLS enabled")
 	flag.Parse()
 
 	handler := &proxy{}
@@ -102,7 +103,13 @@ func main() {
 	handler.headersonly = *honly
 	host := *lhost + ":" + *lport
 	log.Println("Starting proxy server on", host)
-	if err := http.ListenAndServe(host, handler); err != nil {
-		log.Fatal("ListenAndServe:", err)
+	if *tls {
+		if err := http.ListenAndServeTLS("0.0.0.0:"+*lport, "server.crt", "server.key", handler); err != nil {
+			log.Fatal("ListenAndServeTLS:", err)
+		}
+	} else {
+		if err := http.ListenAndServe(host, handler); err != nil {
+			log.Fatal("ListenAndServe:", err)
+		}
 	}
 }

@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"sync"
 	"strconv"
+	"sync"
 )
 
 //Parsing flags "ethport" and "host"
@@ -56,7 +56,7 @@ func main() {
 	srv := http.Server{Addr: ":" + httpPort}
 	var tlsSrv http.Server
 	if httpsPort > 0 {
-		tlsSrv = http.Server{Addr:":" + strconv.Itoa(httpsPort) }
+		tlsSrv = http.Server{Addr: ":" + strconv.Itoa(httpsPort)}
 	}
 	go func() {
 		select {
@@ -71,7 +71,7 @@ func main() {
 	}()
 	if httpsPort > 0 {
 		go func() {
-			log.Println(tlsSrv.ListenAndServeTLS("server.crt", "server.key"  ))
+			log.Println(tlsSrv.ListenAndServeTLS("server.crt", "server.key"))
 		}()
 	}
 	log.Println(srv.ListenAndServe())

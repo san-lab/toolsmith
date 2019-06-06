@@ -16,7 +16,6 @@ type BlockchainNet struct {
 
 }
 
-
 func NewBlockchainNet() *BlockchainNet {
 	bl := &BlockchainNet{}
 	bl.Nodes = map[NodeID]*Node{}
@@ -167,7 +166,6 @@ func NewNode() *Node {
 	return n
 }
 
-
 //Geth specific
 func FillNodeFromNodeInfo_Geth(n *Node, ni *NodeInfo) {
 	n.ID = NodeID(ni.ID)
@@ -179,17 +177,15 @@ func FillNodeFromNodeInfo_Geth(n *Node, ni *NodeInfo) {
 	return
 }
 
-
-
-func NodeFromPeerInfo_Get(n *Node,pi *PeerInfo) (*Node) {
-	if n== nil {
+func NodeFromPeerInfo_Get(n *Node, pi *PeerInfo) *Node {
+	if n == nil {
 		n = NewNode()
 	}
 	n.ID = NodeID(pi.ID)
 	n.FullName = pi.Name
 	n.ShortName, _ = n.getGethShortName()
 	addr := strings.Split(pi.Network.RemoteAddress, ":")[0]
-	n.KnownAddresses = map[string]bool{addr:true}
+	n.KnownAddresses = map[string]bool{addr: true}
 	n.prefAddress = addr
 	return n
 }

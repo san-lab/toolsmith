@@ -33,7 +33,7 @@ func Decode(respBytes []byte, data *CallData) error {
 	case "admin_peers":
 		p = &PeerArray{}
 	case "parity_netPeers":
-		p= &ParityPeerInfo{}
+		p = &ParityPeerInfo{}
 	case "eth_blockNumber", "eth_call": //Result is not a struct, just an 0xdddd string representing a number
 		//b := HexString(0)
 		//p = &b

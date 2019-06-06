@@ -119,8 +119,6 @@ func (lhh *LilHttpHandler) GetHandler(withAuth bool) handler {
 	return lhh.Handler
 }
 
-
-
 func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request, comm string) {
 	var err error
 	cc := lhh.rpcClient.LocalInfo
@@ -131,7 +129,7 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 	rdata := templates.RenderData{HeaderData: &cc, TemplateName: templates.Home, Client: lhh.rpcClient}
 	switch comm {
 	case peers:
-		node , ok := lhh.rpcClient.NetModel.Nodes[  client.NodeID(r.FormValue("nodeid"))  ]
+		node, ok := lhh.rpcClient.NetModel.Nodes[client.NodeID(r.FormValue("nodeid"))]
 		if ok {
 			rdata.BodyData = node
 			rdata.TemplateName = templates.Peers
@@ -172,9 +170,9 @@ func (lhh *LilHttpHandler) SpecialCommand(w http.ResponseWriter, r *http.Request
 		lhh.rpcClient.Rescan()
 		rdata.TemplateName = "magic"
 	case mockblock:
-		lhh.rpcClient.BlockAddress(r.FormValue("addr") )
+		lhh.rpcClient.BlockAddress(r.FormValue("addr"))
 	case mockunblock:
-		lhh.rpcClient.UnblockAddress(r.FormValue("addr") )
+		lhh.rpcClient.UnblockAddress(r.FormValue("addr"))
 	case addrecipient:
 		email := r.Form.Get(emailparamname)
 		lhh.watchdog.AddRecipient(email)

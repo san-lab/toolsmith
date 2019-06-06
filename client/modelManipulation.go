@@ -22,7 +22,7 @@ func (rpcClient *Client) collectNodeInfo(node *Node, refetch bool) error {
 
 	err := rpcClient.establishNodeClientVersion(node, refetch)
 	if err != nil {
-			return err
+		return err
 	}
 
 	if node.IsGeth() {
@@ -62,8 +62,6 @@ func (rpcClient *Client) establishNodeClientVersion(stub *Node, refetch bool) (e
 
 }
 
-
-
 func (rpcClient *Client) SetPeers(node *Node) (err error) {
 	var method string
 
@@ -85,31 +83,26 @@ func (rpcClient *Client) SetPeers(node *Node) (err error) {
 		var ok bool
 		node.JSONPeers, ok = data.ParsedResult.(*PeerArray)
 		if !ok {
-			err = errors.New("Could not parse the result of JSONPeers of " + node.ShortName )
+			err = errors.New("Could not parse the result of JSONPeers of " + node.ShortName)
 			return
 		}
 	} else if node.IsParity() {
 		peersResp, ok := data.ParsedResult.(*ParityPeerInfo)
 		if !ok {
-			errors.New("Could not parse the result of JSONPeers of " + node.ShortName )
+			errors.New("Could not parse the result of JSONPeers of " + node.ShortName)
 			return
 		}
 		node.JSONPeers = &peersResp.Peers
 
-
 	}
 
-	for _,pi := range *node.JSONPeers {
-		n := NodeFromPeerInfo_Get(nil,&pi)
+	for _, pi := range *node.JSONPeers {
+		n := NodeFromPeerInfo_Get(nil, &pi)
 		node.Peers[NodeID(pi.ID)] = n
 	}
 
-
 	return
 }
-
-
-
 
 func (rpcClient *Client) collectGethNodeInfo(node *Node, fromScratch bool) error {
 	data := rpcClient.NewCallData("admin_nodeInfo")
@@ -200,21 +193,18 @@ func (rpcClient *Client) DiscoverNetwork() error {
 //The effects are in the NetworkModel
 func (rpcClient *Client) collectNodeInfoRecursively(parent *Node) error {
 
-
 	for id, peer := range parent.Peers {
 		if rpcClient.NetModel.Nodes[id] == nil {
 			node := NewNode()
 			node.ID = peer.ID
 			node.prefAddress = peer.prefAddress
-			node.KnownAddresses[peer.prefAddress]=true
-			rpcClient.NetModel.Nodes[node.ID]=node
+			node.KnownAddresses[peer.prefAddress] = true
+			rpcClient.NetModel.Nodes[node.ID] = node
 			rpcClient.collectNodeInfo(node, true)
-
 
 			rpcClient.collectNodeInfoRecursively(node)
 		}
 	}
-
 
 	return nil
 }
@@ -257,31 +247,28 @@ func (rpcClient *Client) Bloop() (blocks map[string]interface{}, err error) {
 	return
 }
 
-
 //Verifies that the default RPC gateway works, Gets the basic Network information
 //Gets basic info on the entry Node and Peers of the entry Node
 func (rpcClient *Client) GetNetworkBasics() error {
 	//First find out the network ID, if not known
 
-		callData := rpcClient.NewCallData("net_version")
-		callData.Context.TargetNode = rpcClient.DefaultEthNodeAddr
-		err := rpcClient.actualRpcCall(callData)
-		if err != nil {
-			return err
-		}
-		sr := callData.ParsedResult.(*StringResult)
-		rpcClient.NetModel.NetworkID = string(*sr)
-		stub := NewNode()
-		stub.KnownAddresses[rpcClient.DefaultEthNodeAddr] = true
-		stub.prefAddress = rpcClient.DefaultEthNodeAddr
-		err = rpcClient.collectNodeInfo(stub, true)
-		if err != nil {
-			return err
-		}
-		rpcClient.NetModel.AccessNodeID = stub.ID
-		rpcClient.NetModel.Nodes[stub.ID] = stub
-
-
+	callData := rpcClient.NewCallData("net_version")
+	callData.Context.TargetNode = rpcClient.DefaultEthNodeAddr
+	err := rpcClient.actualRpcCall(callData)
+	if err != nil {
+		return err
+	}
+	sr := callData.ParsedResult.(*StringResult)
+	rpcClient.NetModel.NetworkID = string(*sr)
+	stub := NewNode()
+	stub.KnownAddresses[rpcClient.DefaultEthNodeAddr] = true
+	stub.prefAddress = rpcClient.DefaultEthNodeAddr
+	err = rpcClient.collectNodeInfo(stub, true)
+	if err != nil {
+		return err
+	}
+	rpcClient.NetModel.AccessNodeID = stub.ID
+	rpcClient.NetModel.Nodes[stub.ID] = stub
 
 	return nil
 }
@@ -295,12 +282,9 @@ func (rpcClient *Client) collectNodePeerInfo(node *Node, rebuild bool) (err erro
 	node.Peers = map[NodeID]*Node{}
 	for _, pi := range *node.JSONPeers {
 
-
-		pn := NodeFromPeerInfo_Get(nil , &pi)
+		pn := NodeFromPeerInfo_Get(nil, &pi)
 
 		pn.KnownAddresses[pi.RemoteHostMachine()] = true
-
-
 
 	}
 	return nil
