@@ -61,7 +61,7 @@ func NewHttpHandler(c Config, ctx context.Context) (lhh *LilHttpHandler, err err
 	lhh = &LilHttpHandler{}
 	lhh.config = c
 	lhh.renderer = templates.NewRenderer()
-	lhh.rpcClient, err = client.NewClient(c.EthHost, c.MockMode, c.DumpRPC)
+	lhh.rpcClient, err = client.NewClient(c.RPCFirstEntry, c.MockMode, c.DumpRPC)
 	if c.StartWatchdog {
 		lhh.watchdog = watchdog.StartWatchdog(lhh.rpcClient, ctx)
 	}
@@ -87,7 +87,7 @@ func (lhh *LilHttpHandler) Handler(w http.ResponseWriter, r *http.Request) {
 	case 1:
 		comm := f[0]
 		if client.CamelCaseKnownCommand(&comm) {
-			lhh.RpcCallAndRespond(w, r, lhh.config.EthHost, comm)
+			lhh.RpcCallAndRespond(w, r, lhh.config.RPCFirstEntry, comm)
 		} else if strings.HasPrefix(comm, "json") {
 			lhh.handleJSON(w, r, comm)
 		} else {
@@ -243,7 +243,7 @@ func (lhh *LilHttpHandler) RpcCallAndRespond(w http.ResponseWriter, r *http.Requ
 	var err error
 	r.ParseForm()
 	callData := lhh.rpcClient.NewCallData(eMethod)
-	callData.Context.TargetNode = eNode
+	callData.Context.TargetRPCEndpoint = eNode
 	callData.Context.RequestPath = r.RequestURI
 
 	//"parN"=parameterValue
@@ -299,7 +299,7 @@ func (lhh *LilHttpHandler) RpcCallAndRespond(w http.ResponseWriter, r *http.Requ
 }
 
 type Config struct {
-	EthHost       string
+	RPCFirstEntry string
 	MockMode      bool
 	DumpRPC       bool
 	StartWatchdog bool

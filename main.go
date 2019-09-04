@@ -28,7 +28,7 @@ func main() {
 	flag.Parse()
 
 	c := httphandler.Config{}
-	c.EthHost = *ethRPCAddress
+	c.RPCFirstEntry = *ethRPCAddress
 	httpPort := *httpPortF
 	httpsPort := *httpsPortF
 	c.MockMode = *mockMode
@@ -51,7 +51,8 @@ func main() {
 	//Beware! This config means that all the static images - also the ones called from the templates -
 	// have to be addressed as "/static/*", regardless of the location of the template
 	fs := http.FileServer(http.Dir("static"))
-	http.HandleFunc("/static/", http.StripPrefix("/static", fs).ServeHTTP)
+	http.HandleFunc("/static/", http.StripPrefix("/"+
+		"static", fs).ServeHTTP)
 	http.HandleFunc("/", handler.GetHandler(*withBasicAuth))
 	srv := http.Server{Addr: ":" + httpPort}
 	var tlsSrv http.Server

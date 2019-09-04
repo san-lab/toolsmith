@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -19,7 +20,7 @@ import (
 //The struct also contains a map of addresses of known nodes' end-points
 //The field Port - to memorize the default Port (a bit of a stretch)
 type Client struct {
-	DefaultEthNodeAddr   string
+	DefaultRPCEndpoint   string // host:port
 	UserAgent            string
 	httpClient           HttpClient
 	seq                  uint
@@ -53,7 +54,7 @@ func NewClient(ethHost string, mock bool, dump bool) (c *Client, err error) {
 		c.httpClient.(*http.Client).Timeout = defaultTimeout
 	}
 
-	c.DefaultEthNodeAddr = ethHost
+	c.DefaultRPCEndpoint = ethHost
 	c.DefaultRPCPort = strings.Split(ethHost, ":")[1]
 	c.seq = 0
 	//TODO handle error
@@ -62,6 +63,23 @@ func NewClient(ethHost string, mock bool, dump bool) (c *Client, err error) {
 	c.UnreachableAddresses = map[string]MyTime{}
 	c.blockedAddresses = map[string]bool{}
 	return
+}
+
+func (rpcClient *Client) tryToFindRPCAddress(nodeid NodeID, rpcHost string, rpcPort int) (rpcAddress string, found bool) {
+	rpcClient.SetTimeout(time.Millisecond * 500)
+	defer rpcClient.SetTimeout(defaultTimeout)
+
+	data := rpcClient.NewCallData("web3_clientVersion")
+
+	for i := rpcPort - 10; i < rpcPort+10; i++ {
+		data.Context.TargetRPCEndpoint = rpcHost + ":" + strconv.Itoa(i)
+		err := rpcClient.actualRpcCall(data)
+		if err == nil {
+			return data.Context.TargetRPCEndpoint, true
+		}
+	}
+
+	return "", false
 }
 
 //The name says it all
@@ -94,13 +112,13 @@ func (rpcClient *Client) nextID() (id uint) {
 //Generic call to the ethereum api's. Uses structures corresponding to the api json specs
 //The response gets enclosed in the CallData argument
 func (rpcClient *Client) actualRpcCall(data *CallData) error {
-	if rpcClient.blockedAddresses[data.Context.TargetNode] {
-		return errors.New("Blocked address:" + data.Context.TargetNode)
+	if rpcClient.blockedAddresses[data.Context.TargetRPCEndpoint] {
+		return errors.New("Blocked address:" + data.Context.TargetRPCEndpoint)
 	}
 	data.Command.Id = rpcClient.nextID()
 	jcom, _ := json.Marshal(data.Command)
 	//TODO: allow to define and memorize node-specific ports
-	host := data.Context.TargetNode
+	host := data.Context.TargetRPCEndpoint
 	if !strings.Contains(host, ":") {
 		host = host + ":" + rpcClient.DefaultRPCPort
 	}
@@ -226,7 +244,7 @@ func (rpcClient *Client) FullMesh() error {
 			for addr := range n2.KnownAddresses {
 				enode := "enode://" + string(n2.ID) + "@" + addr + ":30304"
 				callData := rpcClient.NewCallData("admin_addPeer")
-				callData.Context.TargetNode = n1.PrefAddress()
+				callData.Context.TargetRPCEndpoint = n1.RPCAddress
 				callData.Command.Params = []interface{}{enode}
 				err := rpcClient.actualRpcCall(callData)
 				if err != nil {

@@ -32,11 +32,12 @@ func (rpcClient *Client) collectNodeInfo(node *Node, refetch bool) error {
 	} else {
 		return errors.New("unsupported Eth client")
 	}
+
 }
 
 func (rpcClient *Client) establishNodeClientVersion(stub *Node, refetch bool) (err error) {
 	if refetch || len(stub.ClientVersion) == 0 {
-		addr := stub.PrefAddress()
+		addr := stub.RPCAddress
 		if len(addr) == 0 {
 			err = errors.New("no known address for the node, exiting")
 			log.Println(err)
@@ -44,7 +45,7 @@ func (rpcClient *Client) establishNodeClientVersion(stub *Node, refetch bool) (e
 		}
 
 		data := rpcClient.NewCallData("web3_clientVersion")
-		data.Context.TargetNode = addr
+		data.Context.TargetRPCEndpoint = addr
 		err = rpcClient.actualRpcCall(data)
 		if err != nil {
 			return err
@@ -54,7 +55,7 @@ func (rpcClient *Client) establishNodeClientVersion(stub *Node, refetch bool) (e
 			err = errors.New("could not parse the ClientVersion of the root node")
 			return err
 		}
-		stub.SetReachable(true)
+		stub.setReachable(true)
 		stub.ClientVersion = string(*cvr)
 
 	}
@@ -74,7 +75,7 @@ func (rpcClient *Client) SetPeers(node *Node) (err error) {
 		return
 	}
 	data := rpcClient.NewCallData(method)
-	data.Context.TargetNode = node.prefAddress
+	data.Context.TargetRPCEndpoint = node.RPCAddress
 	err = rpcClient.actualRpcCall(data)
 	if err != nil || !data.Parsed {
 		return
@@ -97,7 +98,7 @@ func (rpcClient *Client) SetPeers(node *Node) (err error) {
 	}
 
 	for _, pi := range *node.JSONPeers {
-		n := NodeFromPeerInfo_Get(nil, &pi)
+		n := NodeFromPeerInfo_Geth(nil, &pi)
 		node.Peers[NodeID(pi.ID)] = n
 	}
 
@@ -106,7 +107,7 @@ func (rpcClient *Client) SetPeers(node *Node) (err error) {
 
 func (rpcClient *Client) collectGethNodeInfo(node *Node, fromScratch bool) error {
 	data := rpcClient.NewCallData("admin_nodeInfo")
-	data.Context.TargetNode = node.PrefAddress()
+	data.Context.TargetRPCEndpoint = node.RPCAddress
 	if fromScratch {
 
 		err := rpcClient.actualRpcCall(data)
@@ -141,7 +142,7 @@ func (rpcClient *Client) collectGethNodeInfo(node *Node, fromScratch bool) error
 
 func (rpcClient *Client) collectParityNodeInfo(stub *Node) error {
 	data := rpcClient.NewCallData("parity_nodeName")
-	data.Context.TargetNode = stub.PrefAddress()
+	data.Context.TargetRPCEndpoint = stub.PrefAddress()
 	err := rpcClient.actualRpcCall(data)
 	if err != nil {
 		return err
@@ -197,11 +198,10 @@ func (rpcClient *Client) collectNodeInfoRecursively(parent *Node) error {
 		if rpcClient.NetModel.Nodes[id] == nil {
 			node := NewNode()
 			node.ID = peer.ID
-			node.prefAddress = peer.prefAddress
-			node.KnownAddresses[peer.prefAddress] = true
+			//node.prefAddress = peer.prefAddress
+			node.KnownAddresses[peer.PrefAddress()] = true
 			rpcClient.NetModel.Nodes[node.ID] = node
 			rpcClient.collectNodeInfo(node, true)
-
 			rpcClient.collectNodeInfoRecursively(node)
 		}
 	}
@@ -253,7 +253,7 @@ func (rpcClient *Client) GetNetworkBasics() error {
 	//First find out the network ID, if not known
 
 	callData := rpcClient.NewCallData("net_version")
-	callData.Context.TargetNode = rpcClient.DefaultEthNodeAddr
+	callData.Context.TargetRPCEndpoint = rpcClient.DefaultRPCEndpoint
 	err := rpcClient.actualRpcCall(callData)
 	if err != nil {
 		return err
@@ -261,8 +261,9 @@ func (rpcClient *Client) GetNetworkBasics() error {
 	sr := callData.ParsedResult.(*StringResult)
 	rpcClient.NetModel.NetworkID = string(*sr)
 	stub := NewNode()
-	stub.KnownAddresses[rpcClient.DefaultEthNodeAddr] = true
-	stub.prefAddress = rpcClient.DefaultEthNodeAddr
+	//TODO: DevP2P address here stub.KnownAddresses[rpcClient.DefaultRPCEndpoint] = true
+	//stub.prefAddress = rpcClient.DefaultRPCEndpoint
+	stub.RPCAddress = rpcClient.DefaultRPCEndpoint
 	err = rpcClient.collectNodeInfo(stub, true)
 	if err != nil {
 		return err
@@ -282,7 +283,7 @@ func (rpcClient *Client) collectNodePeerInfo(node *Node, rebuild bool) (err erro
 	node.Peers = map[NodeID]*Node{}
 	for _, pi := range *node.JSONPeers {
 
-		pn := NodeFromPeerInfo_Get(nil, &pi)
+		pn := NodeFromPeerInfo_Geth(nil, &pi)
 
 		pn.KnownAddresses[pi.RemoteHostMachine()] = true
 
@@ -292,7 +293,7 @@ func (rpcClient *Client) collectNodePeerInfo(node *Node, rebuild bool) (err erro
 
 func (n *Node) sampleBlockNo(rpc *Client) error {
 	callData := rpc.NewCallData("eth_blockNumber")
-	callData.Context.TargetNode = n.PrefAddress()
+	callData.Context.TargetRPCEndpoint = n.RPCAddress
 	err := rpc.actualRpcCall(callData)
 	if err != nil || !callData.Parsed {
 		return err

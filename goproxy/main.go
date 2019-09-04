@@ -22,11 +22,13 @@ type proxy struct {
 	cport       string
 	lport       string
 	headersonly bool
+	mockOptions bool
 }
 
 func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 
 	defer req.Body.Close()
+
 	bbuf, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		fmt.Fprintln(wr, err)
@@ -43,6 +45,28 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 		}
 	}
 	fmt.Println(string(bbuf))
+
+	// Now check if to mock the response to the OPTIONS call
+	if p.mockOptions {
+
+		if req.Method == http.MethodOptions {
+			fmt.Println("Mocking the http OPTIONS call")
+			wr.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTION")
+			wr.Header().Set("Access-Control-Allow-Headers", "Content-type")
+			wr.Header().Set("Content-type", "application/json")
+			wr.Header().Set("Access-Control-Allow-Origin", "*")
+			wr.WriteHeader(http.StatusOK)
+			return
+
+
+		}
+
+
+
+
+
+	}
+
 
 	client := &http.Client{}
 	//http: Request.RequestURI can't be set in client requests.
@@ -62,7 +86,7 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 		http.Error(wr, fmt.Sprint(err), http.StatusInternalServerError)
 		log.Fatal("ServeHTTP:", err)
 	}
-	defer resp.Body.Close()
+
 	respBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Fprintf(wr, "%s", err)
@@ -93,6 +117,7 @@ func main() {
 	chost := flag.String("callHost", "localhost", "The server to call")
 	cport := flag.String("callPort", "9090", "The port to call")
 	honly := flag.Bool("headersOnly", false, "If true no message body dump")
+	mockOptions := flag.Bool("mockOptions", false, "Should the http OPTION method be mocked")
 	tls := flag.Bool("tls", false, "TLS enabled")
 	flag.Parse()
 
@@ -101,6 +126,7 @@ func main() {
 	handler.lport = *lport
 	handler.chost = *chost
 	handler.headersonly = *honly
+	handler.mockOptions = *mockOptions
 	host := *lhost + ":" + *lport
 	log.Println("Starting proxy server on", host)
 	if *tls {

@@ -15,12 +15,12 @@ Unreachable addresses: </br>
 <ul>
     {{range .Client.NetModel.Nodes}}
 
-    <li> <b>Node: </b> <a href="/{{.PrefAddress}}/admin_nodeinfo">{{.ShortName}}</a>, Type: {{.ClientType}}, id: {{.IDHead 7}}...{{.IDTail 7}} , Reachable: {{ .IsReachable}},{{.PrefAddress}} <br/>
+    <li> <b>Node: </b> <a href="/{{.RPCAddress}}/admin_nodeinfo">{{.ShortName}}</a>, Type: {{.ClientType}}, id: {{.IDHead 7}}...{{.IDTail 7}} , Reachable: {{ .IsReachable}},{{.PrefAddress}} <br/>
 
     {{with .LastBlockNumberSample}} BlockNumber: {{.BlockNumber}} reported at {{.Sampled}}, {{end}}
         {{if .IsReachable}}
             Peer count: <a href="/peers?nodeid={{.ID}}"> {{len .Peers}}</a> <br/>
-             <a  href="/{{.PrefAddress }}/txpool_inspect"> txpool: {{.TxpoolStatus}}</a><br/>
+             <a  href="/{{.RPCAddress }}/txpool_inspect"> txpool: {{.TxpoolStatus}}</a><br/>
         {{end}}Known addresses: {{len .KnownAddresses}}
         </li></br>
      {{end}}

@@ -55,10 +55,11 @@ type Node struct {
 	LastReach             MyTime
 	LastFail              MyTime
 	issReachable          bool
-	prefAddress           string
-	progress              bool
-	ClientVersion         string
-	isFromPeer            bool
+	//prefAddress           string
+	progress      bool
+	ClientVersion string
+	isFromPeer    bool
+	RPCAddress    string // hostname:port
 }
 
 func (n *Node) IsStuck() bool {
@@ -78,7 +79,7 @@ func (bcn BlockchainNet) ResolveAddress(addr string) (*Node, bool) {
 func (n *Node) PeerSeenAs(peer NodeID) (string, bool) {
 	for _, p := range n.Peers {
 		if p.ID == peer {
-			return p.prefAddress, true
+			return p.PrefAddress(), true
 		}
 	}
 	return "", false
@@ -102,12 +103,12 @@ func (n Node) getGethShortName() (string, bool) {
 //This is a stub. The address does not include the rpc port
 //The bool flag is true if an actual address is returned, false otherwise
 func (n Node) PrefAddress() string {
-	if len(n.prefAddress) > 0 {
-		return n.prefAddress
-	}
+	//if len(n.prefAddress) > 0 {
+	//	return n.prefAddress
+	//}
 	for a, ok := range n.KnownAddresses {
 		if ok {
-			n.prefAddress = a
+			//n.prefAddress = a
 			return a
 		}
 	}
@@ -128,7 +129,7 @@ func (n Node) IDTail(i int) string {
 	return string(n.ID)[len(n.ID)-i:]
 }
 
-func (n *Node) SetReachable(is bool) {
+func (n *Node) setReachable(is bool) {
 	log.Printf("Setting %s as reachable=%v\n", n.ShortName, is)
 	n.issReachable = is
 	if is {
@@ -173,11 +174,11 @@ func FillNodeFromNodeInfo_Geth(n *Node, ni *NodeInfo) {
 	n.FullName = ni.Name
 	n.Enode = ni.Enode
 	n.ShortName, _ = n.getGethShortName()
-	n.SetReachable(true) //This is based on the assumption that the node info has been just obtained
+	n.setReachable(true) //This is based on the assumption that the node info has been just obtained
 	return
 }
 
-func NodeFromPeerInfo_Get(n *Node, pi *PeerInfo) *Node {
+func NodeFromPeerInfo_Geth(n *Node, pi *PeerInfo) *Node {
 	if n == nil {
 		n = NewNode()
 	}
@@ -186,7 +187,7 @@ func NodeFromPeerInfo_Get(n *Node, pi *PeerInfo) *Node {
 	n.ShortName, _ = n.getGethShortName()
 	addr := strings.Split(pi.Network.RemoteAddress, ":")[0]
 	n.KnownAddresses = map[string]bool{addr: true}
-	n.prefAddress = addr
+	//n.prefAddress = addr
 	return n
 }
 
