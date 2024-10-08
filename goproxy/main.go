@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -23,6 +24,7 @@ type proxy struct {
 	lport       string
 	headersonly bool
 	mockOptions bool
+	https       bool
 }
 
 func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
@@ -58,21 +60,30 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 			wr.WriteHeader(http.StatusOK)
 			return
 
-
 		}
-
-
-
-
 
 	}
 
+	var client *http.Client
+	if p.https {
+		client = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: false, ServerName: p.chost},
+			},
+		}
+	} else {
+		client = &http.Client{}
+	}
 
-	client := &http.Client{}
 	//http: Request.RequestURI can't be set in client requests.
 	//http://golang.org/src/pkg/net/http/client.go
 	//newUrl := "http://" + strings.Replace(req.Host, ":"+ p.lport, ":"+ p.cport,1) + req.RequestURI
-	newUrl := "http://" + p.chost + ":" + p.cport + req.RequestURI
+	protocol := "http://"
+	if p.https {
+		protocol = "https://"
+	}
+
+	newUrl := protocol + p.chost + ":" + p.cport + req.RequestURI
 	newReq, err := http.NewRequest(req.Method, newUrl, bytes.NewReader(bbuf))
 	if err != nil {
 		http.Error(wr, fmt.Sprint(err), http.StatusBadGateway)
@@ -116,6 +127,7 @@ func main() {
 	lport := flag.String("listenPort", "8080", "The listening port")
 	chost := flag.String("callHost", "localhost", "The server to call")
 	cport := flag.String("callPort", "9090", "The port to call")
+	https := flag.Bool("https", false, "If true the server will use https")
 	honly := flag.Bool("headersOnly", false, "If true no message body dump")
 	mockOptions := flag.Bool("mockOptions", false, "Should the http OPTION method be mocked")
 	tls := flag.Bool("tls", false, "TLS enabled")
@@ -127,6 +139,7 @@ func main() {
 	handler.chost = *chost
 	handler.headersonly = *honly
 	handler.mockOptions = *mockOptions
+	handler.https = *https
 	host := *lhost + ":" + *lport
 	log.Println("Starting proxy server on", host)
 	if *tls {
