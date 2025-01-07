@@ -12,8 +12,13 @@ import (
 
 func copyHeaders(src, dst *http.Header) {
 	for k, vv := range *src {
-		for _, v := range vv {
-			dst.Add(k, v)
+		if k != "Accept-Encoding" {
+			for _, v := range vv {
+				dst.Add(k, v)
+			}
+
+		} else {
+			dst.Add(k, "identity")
 		}
 	}
 }
